@@ -87,7 +87,7 @@ param additionalFwPipCount int = 0
 @description('[Standard/Free] The SKU for Defender for Cloud. Default value = "Free".')
 param defenderSkuTier string = 'Free'
 
-@description('When set to "true", deploys Active Directory Domain Services (ADDS) domain controllers in the identity tier. Requires deployIdentity to be true. Default value = "false".')
+@description('Legacy profile only: deploys Active Directory Domain Services (ADDS) domain controllers when deployIdentity is also true. Ignored by customer-il2. Default value = "false".')
 param deployActiveDirectoryDomainServices bool = false
 
 @description('When set to "true", provisions Azure Gateway Subnet only. Default value = "false".')
@@ -122,14 +122,21 @@ param deployDefender bool = true
 @description('The Paid Workload Protection plans for Defender for Cloud. Default value = "VirtualMachines". See the following URL for valid settings: https://learn.microsoft.com/rest/api/defenderforcloud-composite/pricings/update?view=rest-defenderforcloud-composite-latest&tabs=HTTP.')
 param deployDefenderPlans array = ['VirtualMachines']
 
-@description('Choose to deploy the identity resources. The identity resoures are not required if you plan to use cloud identities.')
+@description('Legacy profile only: choose to deploy the identity resources. Ignored by customer-il2.')
 param deployIdentity bool = false
 
-@description('When set to "true", provisions Linux Virtual Machine Host only. Default value = "false".')
+@description('Legacy profile only: provisions a Linux jump-box virtual machine. Ignored by customer-il2. Default value = "false".')
 param deployLinuxVirtualMachine bool = false
 
 @description('A suffix to use for naming deployments uniquely. Default value = "utcNow()".')
 param deploymentNameSuffix string = utcNow()
+
+@allowed([
+  'customer-il2'
+  'legacy'
+])
+@description('customer-il2 deploys only Hub and Operations with SCCA/region/IL2 naming and disables MLZ Identity, ADDS, and jump-box workloads regardless of their switches. legacy preserves the upstream topology and resource naming.')
+param deploymentProfile string = 'customer-il2'
 
 @description('When set to true, deploys Network Watcher Traffic Analytics. Default value = "false".')
 param deployNetworkWatcherTrafficAnalytics bool = false
@@ -140,7 +147,7 @@ param deployPolicy bool = false
 @description('When set to "true", enables Microsoft Sentinel within the Log Analytics Workspace created in this deployment. Default value = "false".')
 param deploySentinel bool = false
 
-@description('When set to "true", provisions Windows Virtual Machine Host only. Default value = "false".')
+@description('Legacy profile only: provisions a Windows jump-box virtual machine. Ignored by customer-il2. Default value = "false".')
 param deployWindowsVirtualMachine bool = false
 
 @description('The Azure Firewall DNS Proxy will forward all DNS traffic. When this value is set to true, you must provide a value for "servers". This should be a comma separated list of IP addresses to forward DNS traffic.')
@@ -331,7 +338,7 @@ param hybridUseBenefit bool = false
 
 @minLength(1)
 @maxLength(5)
-@description('1-5 alphanumeric characters without whitespace, used to name resources and generate uniqueness for resources within your subscription. Ideally, the value should represent an organization, department, or business unit.')
+@description('1-5 lowercase alphanumeric characters. Customer/deployment suffix for customer-il2 (mlz produces names ending in -mlz); legacy retains the upstream identifier position. Also used in global-resource hash seeds.')
 param identifier string
 
 @description('An array of Network Security Group diagnostic logs to apply to the Identity Virtual Network. See the following URL for valid settings: https://learn.microsoft.com/azure/virtual-network/virtual-network-nsg-manage-log#log-categories.')
@@ -397,7 +404,7 @@ param keyVaultDiagnosticsMetrics array = [
 @minLength(12)
 @secure()
 @description('The administrator password or public SSH key for the Linux Virtual Machine for remote access. See the following URL for valid settings: https://learn.microsoft.com/azure/virtual-machines/linux/faq#what-are-the-password-requirements-when-creating-a-vm-.')
-param linuxVmAdminPasswordOrKey string = deployLinuxVirtualMachine ? '' : newGuid()
+param linuxVmAdminPasswordOrKey string = deploymentProfile == 'legacy' && deployLinuxVirtualMachine ? '' : newGuid()
 
 @description('The administrator username for the Linux Virtual Machine for remote access. Default value = "xadmin".')
 param linuxVmAdminUsername string = 'xadmin'
@@ -651,7 +658,7 @@ param tags object = {}
 @minLength(12)
 @secure()
 @description('The administrator password the Windows Virtual Machine for remote access. It must be > 12 characters in length. See the following URL for valid settings: https://learn.microsoft.com/azure/virtual-machines/windows/faq#what-are-the-password-requirements-when-creating-a-vm-.')
-param windowsVmAdminPassword string = deployWindowsVirtualMachine ? '' : newGuid()
+param windowsVmAdminPassword string = deploymentProfile == 'legacy' && deployWindowsVirtualMachine ? '' : newGuid()
 
 @description('The administrator username for the Windows Virtual Machine for remote access. Default value = "xadmin".')
 param windowsVmAdminUsername string = 'xadmin'
@@ -680,6 +687,67 @@ param windowsVmStorageAccountType string = 'StandardSSD_LRS'
 
 var firewallClientPrivateIpAddress = firewallClientUsableIpAddresses[3]
 var firewallClientUsableIpAddresses = [for i in range(0, 4): cidrHost(firewallClientSubnetAddressPrefix, i)]
+var isLegacyProfile = deploymentProfile == 'legacy'
+var effectiveDeployIdentity = isLegacyProfile && deployIdentity
+var effectiveDeployActiveDirectoryDomainServices = effectiveDeployIdentity && deployActiveDirectoryDomainServices
+var effectiveDeployLinuxVirtualMachine = isLegacyProfile && deployLinuxVirtualMachine
+var effectiveDeployWindowsVirtualMachine = isLegacyProfile && deployWindowsVirtualMachine
+var activeNetworks = concat(
+  [
+    {
+      name: 'hub'
+      shortName: 'hub'
+      subscriptionId: hubSubscriptionId
+      nsgDiagLogs: hubNetworkSecurityGroupDiagnosticsLogs
+      nsgRules: hubNetworkSecurityGroupRules
+      vnetAddressPrefix: hubVirtualNetworkAddressPrefix
+      vnetDiagLogs: hubVirtualNetworkDiagnosticsLogs
+      vnetDiagMetrics: hubVirtualNetworkDiagnosticsMetrics
+      subnetAddressPrefix: hubSubnetAddressPrefix
+    }
+    {
+      name: 'operations'
+      shortName: 'ops'
+      subscriptionId: operationsSubscriptionId
+      nsgDiagLogs: operationsNetworkSecurityGroupDiagnosticsLogs
+      nsgRules: operationsNetworkSecurityGroupRules
+      vnetAddressPrefix: operationsVirtualNetworkAddressPrefix
+      vnetDiagLogs: operationsVirtualNetworkDiagnosticsLogs
+      vnetDiagMetrics: operationsVirtualNetworkDiagnosticsMetrics
+      subnetAddressPrefix: operationsSubnetAddressPrefix
+    }
+  ],
+  isLegacyProfile
+    ? [
+        {
+          name: 'sharedServices'
+          shortName: 'svcs'
+          subscriptionId: sharedServicesSubscriptionId
+          nsgDiagLogs: sharedServicesNetworkSecurityGroupDiagnosticsLogs
+          nsgRules: sharedServicesNetworkSecurityGroupRules
+          vnetAddressPrefix: sharedServicesVirtualNetworkAddressPrefix
+          vnetDiagLogs: sharedServicesVirtualNetworkDiagnosticsLogs
+          vnetDiagMetrics: sharedServicesVirtualNetworkDiagnosticsMetrics
+          subnetAddressPrefix: sharedServicesSubnetAddressPrefix
+        }
+      ]
+    : [],
+  effectiveDeployIdentity
+    ? [
+        {
+          name: 'identity'
+          shortName: 'id'
+          subscriptionId: identitySubscriptionId
+          nsgDiagLogs: identityNetworkSecurityGroupDiagnosticsLogs
+          nsgRules: identityNetworkSecurityGroupRules
+          vnetAddressPrefix: identityVirtualNetworkAddressPrefix
+          vnetDiagLogs: identityVirtualNetworkDiagnosticsLogs
+          vnetDiagMetrics: identityVirtualNetworkDiagnosticsMetrics
+          subnetAddressPrefix: identitySubnetAddressPrefix
+        }
+      ]
+    : []
+)
 
 // NETWORKING
 
@@ -689,12 +757,13 @@ module networking 'modules/networking.bicep' = {
   params: {
     bastionHostSubnetAddressPrefix: bastionHostSubnetAddressPrefix
     azureGatewaySubnetAddressPrefix: azureGatewaySubnetAddressPrefix
-    deployIdentity: deployIdentity
+    deployIdentity: effectiveDeployIdentity
     deploymentNameSuffix: deploymentNameSuffix
     deployBastion: deployBastion
     deployAzureGatewaySubnet: deployAzureGatewaySubnet
     dnsServers: dnsServers
     enableProxy: enableProxy
+    deploymentProfile: deploymentProfile
     environmentAbbreviation: environmentAbbreviation
     firewallSettings: {
       clientPrivateIpAddress: firewallClientPrivateIpAddress
@@ -791,7 +860,7 @@ module networking 'modules/networking.bicep' = {
                         ]
                       }
                     ],
-                    deployActiveDirectoryDomainServices
+                    effectiveDeployActiveDirectoryDomainServices
                       ? [
                           {
                             name: 'Allow-ADDS-TCP'
@@ -837,14 +906,14 @@ module networking 'modules/networking.bicep' = {
                           }
                         ]
                       : [],
-                    deployLinuxVirtualMachine || deployWindowsVirtualMachine
+                    effectiveDeployLinuxVirtualMachine || effectiveDeployWindowsVirtualMachine
                       ? [
                           {
                             name: 'Allow-KMS-TCP'
                             ruleType: 'NetworkRule'
                             ipProtocols: ['Tcp']
                             sourceAddresses: union(
-                              deployLinuxVirtualMachine && deployWindowsVirtualMachine
+                              effectiveDeployLinuxVirtualMachine && effectiveDeployWindowsVirtualMachine
                                 ? [
                                     cidrHost(hubSubnetAddressPrefix, 4)
                                     cidrHost(hubSubnetAddressPrefix, 5)
@@ -852,7 +921,7 @@ module networking 'modules/networking.bicep' = {
                                 : [
                                     cidrHost(hubSubnetAddressPrefix, 4)
                                   ],
-                              deployActiveDirectoryDomainServices
+                              effectiveDeployActiveDirectoryDomainServices
                                 ? [
                                     cidrHost(identitySubnetAddressPrefix, 5)
                                     cidrHost(identitySubnetAddressPrefix, 6)
@@ -881,7 +950,7 @@ module networking 'modules/networking.bicep' = {
                   action: {
                     type: 'Allow'
                   }
-                  rules: deployLinuxVirtualMachine || deployWindowsVirtualMachine
+                  rules: effectiveDeployLinuxVirtualMachine || effectiveDeployWindowsVirtualMachine
                     ? [
                         {
                           name: 'Allow-WindowsUpdate'
@@ -900,7 +969,7 @@ module networking 'modules/networking.bicep' = {
                           targetUrls: []
                           terminateTLS: false
                           sourceAddresses: union(
-                            deployLinuxVirtualMachine && deployWindowsVirtualMachine
+                            effectiveDeployLinuxVirtualMachine && effectiveDeployWindowsVirtualMachine
                               ? [
                                   cidrHost(hubSubnetAddressPrefix, 4)
                                   cidrHost(hubSubnetAddressPrefix, 5)
@@ -908,7 +977,7 @@ module networking 'modules/networking.bicep' = {
                               : [
                                   cidrHost(hubSubnetAddressPrefix, 4)
                                 ],
-                            deployActiveDirectoryDomainServices
+                            effectiveDeployActiveDirectoryDomainServices
                               ? [
                                   cidrHost(identitySubnetAddressPrefix, 5)
                                   cidrHost(identitySubnetAddressPrefix, 6)
@@ -928,58 +997,7 @@ module networking 'modules/networking.bicep' = {
       : customFirewallRuleCollectionGroups
     identifier: identifier
     location: location
-    networks: union(
-      [
-        {
-          name: 'hub'
-          shortName: 'hub'
-          subscriptionId: hubSubscriptionId
-          nsgDiagLogs: hubNetworkSecurityGroupDiagnosticsLogs
-          nsgRules: hubNetworkSecurityGroupRules
-          vnetAddressPrefix: hubVirtualNetworkAddressPrefix
-          vnetDiagLogs: hubVirtualNetworkDiagnosticsLogs
-          vnetDiagMetrics: hubVirtualNetworkDiagnosticsMetrics
-          subnetAddressPrefix: hubSubnetAddressPrefix
-        }
-        {
-          name: 'operations'
-          shortName: 'ops'
-          subscriptionId: operationsSubscriptionId
-          nsgDiagLogs: operationsNetworkSecurityGroupDiagnosticsLogs
-          nsgRules: operationsNetworkSecurityGroupRules
-          vnetAddressPrefix: operationsVirtualNetworkAddressPrefix
-          vnetDiagLogs: operationsVirtualNetworkDiagnosticsLogs
-          vnetDiagMetrics: operationsVirtualNetworkDiagnosticsMetrics
-          subnetAddressPrefix: operationsSubnetAddressPrefix
-        }
-        {
-          name: 'sharedServices'
-          shortName: 'svcs'
-          subscriptionId: sharedServicesSubscriptionId
-          nsgDiagLogs: sharedServicesNetworkSecurityGroupDiagnosticsLogs
-          nsgRules: sharedServicesNetworkSecurityGroupRules
-          vnetAddressPrefix: sharedServicesVirtualNetworkAddressPrefix
-          vnetDiagLogs: sharedServicesVirtualNetworkDiagnosticsLogs
-          vnetDiagMetrics: sharedServicesVirtualNetworkDiagnosticsMetrics
-          subnetAddressPrefix: sharedServicesSubnetAddressPrefix
-        }
-      ],
-      deployIdentity
-        ? [
-            {
-              name: 'identity'
-              shortName: 'id'
-              subscriptionId: identitySubscriptionId
-              nsgDiagLogs: identityNetworkSecurityGroupDiagnosticsLogs
-              nsgRules: identityNetworkSecurityGroupRules
-              vnetAddressPrefix: identityVirtualNetworkAddressPrefix
-              vnetDiagLogs: identityVirtualNetworkDiagnosticsLogs
-              vnetDiagMetrics: identityVirtualNetworkDiagnosticsMetrics
-              subnetAddressPrefix: identitySubnetAddressPrefix
-            }
-          ]
-        : []
-    )
+    networks: activeNetworks
     tags: tags
   }
 }
@@ -1007,7 +1025,7 @@ module monitoring 'modules/monitoring.bicep' = {
 
 // ACTIVE DIRECTORY DOMAIN SERVICES
 
-module activeDirectoryDomainServices 'modules/active-directory-domain-services.bicep' = if (deployActiveDirectoryDomainServices && deployIdentity) {
+module activeDirectoryDomainServices 'modules/active-directory-domain-services.bicep' = if (effectiveDeployActiveDirectoryDomainServices) {
   name: 'deploy-adds-${deploymentNameSuffix}'
   scope: subscription(identitySubscriptionId)
   params: {
@@ -1041,7 +1059,7 @@ module activeDirectoryDomainServices 'modules/active-directory-domain-services.b
 
 // REMOTE ACCESS
 
-module remoteAccess 'modules/remote-access.bicep' = if (deployBastion || deployLinuxVirtualMachine || deployWindowsVirtualMachine) {
+module remoteAccess 'modules/remote-access.bicep' = if (deployBastion || effectiveDeployLinuxVirtualMachine || effectiveDeployWindowsVirtualMachine) {
   name: 'deploy-remote-access-${deploymentNameSuffix}'
   scope: subscription(hubSubscriptionId)
   params: {
@@ -1051,9 +1069,9 @@ module remoteAccess 'modules/remote-access.bicep' = if (deployBastion || deployL
     bastionHostSubnetResourceId: networking.outputs.bastionHostSubnetResourceId
     delimiter: networking.outputs.delimiter
     deployBastion: deployBastion
-    deployLinuxVirtualMachine: deployLinuxVirtualMachine
+    deployLinuxVirtualMachine: effectiveDeployLinuxVirtualMachine
     deploymentNameSuffix: deploymentNameSuffix
-    deployWindowsVirtualMachine: deployWindowsVirtualMachine
+    deployWindowsVirtualMachine: effectiveDeployWindowsVirtualMachine
     environmentAbbreviation: environmentAbbreviation
     hybridUseBenefit: hybridUseBenefit
     keyVaultPrivateDnsZoneResourceId: networking.outputs.privateDnsZoneResourceIds.keyVault
@@ -1132,12 +1150,12 @@ module diagnosticSettings 'modules/diagnostic-settings.bicep' = {
       [
         storage.outputs.keyVaultProperties
       ],
-      deployActiveDirectoryDomainServices
+      effectiveDeployActiveDirectoryDomainServices
         ? [
             activeDirectoryDomainServices!.outputs.keyVaultProperties
           ]
         : [],
-      deployLinuxVirtualMachine || deployWindowsVirtualMachine
+      effectiveDeployLinuxVirtualMachine || effectiveDeployWindowsVirtualMachine
         ? [
             remoteAccess!.outputs.keyVaultProperties
           ]
@@ -1149,11 +1167,11 @@ module diagnosticSettings 'modules/diagnostic-settings.bicep' = {
     logAnalyticsWorkspaceResourceId: monitoring.outputs.logAnalyticsWorkspaceResourceId
     networkInterfaceDiagnosticsMetrics: networkInterfaceDiagnosticsMetrics
     networkInterfaceResourceIds: union(
-      deployActiveDirectoryDomainServices && deployIdentity
+      effectiveDeployActiveDirectoryDomainServices
         ? activeDirectoryDomainServices!.outputs.networkInterfaceResourceIds
         : [],
       monitoring.outputs.networkInterfaceResourceIds,
-      deployLinuxVirtualMachine || deployWindowsVirtualMachine ? remoteAccess!.outputs.networkInterfaceResourceIds : [],
+      effectiveDeployLinuxVirtualMachine || effectiveDeployWindowsVirtualMachine ? remoteAccess!.outputs.networkInterfaceResourceIds : [],
       flatten(storage.outputs.networkInterfaceResourceIds)
     )
     networkWatcherFlowLogsRetentionDays: networkWatcherFlowLogsRetentionDays
@@ -1195,7 +1213,7 @@ module security 'modules/security.bicep' = {
 }
 
 output azureFirewallResourceId string = networking.outputs.azureFirewallResourceId
-output domainControllerResourceIds array = deployActiveDirectoryDomainServices && deployIdentity
+output domainControllerResourceIds array = effectiveDeployActiveDirectoryDomainServices
   ? activeDirectoryDomainServices!.outputs.virtualMachineResourceIds
   : []
 output hubStorageAccountResourceId string = storage.outputs.storageAccountResourceIds[0]

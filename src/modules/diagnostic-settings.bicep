@@ -41,6 +41,11 @@ param tokens object
 
 var dedupedSubscriptionIds = union(subscriptionIds, [])
 var hub = filter(tiers, tier => tier.name == 'hub')[0]
+var storageAccountEntries = [for (tier, i) in tiers: {
+  name: tier.name
+  resourceId: storageAccountResourceIds[i]
+}]
+var storageAccountsByTier = toObject(storageAccountEntries, tier => tier.name, tier => tier.resourceId)
 var networkSecurityGroups = union(networkSecurityGroups_Tiers, networkSecurityGroup_Bastion)
 var networkSecurityGroups_Tiers = [for (tier, i) in tiers: {
   diagnosticLogs: tier.nsgDiagLogs
@@ -59,7 +64,7 @@ var networkSecurityGroup_Bastion = deployBastion ? [
     flowLogsName: replace(hub.namingConvention.networkWatcherFlowLogsNetworkSecurityGroup, tokens.purpose, 'bastion')
     name: replace(hub.namingConvention.bastionHostNetworkSecurityGroup, '${delimiter}${tokens.purpose}', '')
     resourceGroupName: hub.resourceGroupName
-    storageAccountResourceId: storageAccountResourceIds[0]
+    storageAccountResourceId: storageAccountsByTier.hub
     subscriptionId: hub.subscriptionId
     tierName: 'hub${delimiter}bas'
   }
@@ -94,7 +99,7 @@ module logAnalyticsWorkspaceDiagnosticSetting 'log-analytics-diagnostic-setting.
   name: 'deploy-law-diag-${deploymentNameSuffix}'
   scope: resourceGroup(operations.subscriptionId, operations.resourceGroupName)
   params: {
-    diagnosticStorageAccountName: split(storageAccountResourceIds[1], '/')[8]
+    diagnosticStorageAccountName: split(storageAccountsByTier.operations, '/')[8]
     logAnalyticsWorkspaceDiagnosticSettingName: replace(operations.namingConvention.logAnalyticsWorkspaceDiagnosticSetting, '${delimiter}${tokens.purpose}', '')
     logAnalyticsWorkspaceName: split(logAnalyticsWorkspaceResourceId, '/')[8]
     supportedClouds: supportedClouds
@@ -113,7 +118,7 @@ module storageAccountDiagnosticSettings 'storage-account-diagnostic-settings.bic
     fileDiagnosticsLogs: fileDiagnosticsLogs
     fileDiagnosticsMetrics: fileDiagnosticsMetrics
     logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceResourceId
-    logStorageAccountResourceId: tier.name == 'hub' ? storageAccountResourceIds[1] : storageAccountResourceIds[0]
+    logStorageAccountResourceId: tier.name == 'hub' ? storageAccountsByTier.operations : storageAccountsByTier.hub
     queueDiagnosticSettingName: replace(tier.namingConvention.storageAccountQueueDiagnosticSetting, '${delimiter}${tokens.purpose}', '')
     queueDiagnosticsLogs: queueDiagnosticsLogs
     queueDiagnosticsMetrics: queueDiagnosticsMetrics
@@ -151,7 +156,7 @@ module publicIpAddressDiagnosticSettings '../modules/public-ip-address-diagnosti
   name: 'deploy-pip-diag-${i}-${deploymentNameSuffix}'
   scope: resourceGroup(hub.subscriptionId, hub.resourceGroupName)
   params: {
-    hubStorageAccountResourceId: storageAccountResourceIds[0]
+    hubStorageAccountResourceId: storageAccountsByTier.hub
     logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceResourceId
     publicIPAddressDiagnosticSettingName: publicIPAddress.diagName
     publicIPAddressDiagnosticsLogs: publicIPAddressDiagnosticsLogs
@@ -168,7 +173,7 @@ module firewallDiagnosticSetting '../modules/firewall-diagnostic-setting.bicep' 
     firewallName: replace(hub.namingConvention.azureFirewall, '${delimiter}${tokens.purpose}', '')
     logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceResourceId
     logs: firewallDiagnosticsLogs
-    logStorageAccountResourceId: storageAccountResourceIds[0]
+    logStorageAccountResourceId: storageAccountsByTier.hub
     metrics: firewallDiagnosticsMetrics
   }
 }
@@ -179,7 +184,7 @@ module keyVaultDiagnosticSettings '../modules/key-vault-diagnostic-setting.bicep
   params: {
     keyVaultDiagnosticSettingName: keyVault.diagnosticSettingName
     keyVaultName: keyVault.name
-    keyVaultStorageAccountId: filter(storageAccountResourceIds, id => contains(id, keyVault.tierName))[0]
+    keyVaultStorageAccountId: storageAccountsByTier[keyVault.tierName]
     logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceResourceId
     logs: keyVaultDiagnosticLogs
     metrics: keyVaultDiagnosticMetrics
@@ -195,7 +200,7 @@ module bastionDiagnostics '../modules/bastion-diagnostic-setting.bicep' = if (de
     logs: bastionDiagnosticsLogs
     metrics: bastionDiagnosticsMetrics
     name: replace(hub.namingConvention.bastionHost, '${delimiter}${tokens.purpose}', '')
-    storageAccountResourceId: storageAccountResourceIds[0]
+    storageAccountResourceId: storageAccountsByTier.hub
   }
 }
 

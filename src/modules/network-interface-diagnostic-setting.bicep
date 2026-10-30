@@ -14,16 +14,21 @@ param tokens object
 
 var networkInterfaceDiagnosticSettingName = replace(tiers[tierIndex].namingConvention.virtualMachineNetworkInterfaceDiagnosticSetting, '${delimiter}${tokens.purpose}', '')
 var storageAccountResourceId = storageAccountResourceIds[tierIndex]
-var tierIndex = contains(networkInterfaceResourceId, '-ops-') ? 1 : contains(networkInterfaceResourceId, '-svcs-') ? 2 : contains(networkInterfaceResourceId, '-id-') ? 3 : 0
+var tierIndex = indexOf(
+  map(tiers, tier => toLower(tier.subnetResourceId)),
+  toLower(networkInterface.properties.ipConfigurations[0].properties.subnet.id)
+)
 
 resource networkInterface 'Microsoft.Network/networkInterfaces@2021-02-01' existing = {
  name: split(networkInterfaceResourceId, '/')[8]
 }
 
-resource diagnosticSetting 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
-  scope: networkInterface
-  name: networkInterfaceDiagnosticSettingName
-  properties: {
+// Resolve subnet ownership before starting the deployment that names the diagnostic setting.
+module diagnosticSetting 'network-interface-diagnostic-resource.bicep' = {
+  name: 'deploy-nic-diag-${uniqueString(networkInterfaceResourceId)}'
+  params: {
+    networkInterfaceName: networkInterface.name
+    diagnosticSettingName: networkInterfaceDiagnosticSettingName
     logs: logs
     metrics: metrics
     storageAccountId: storageAccountResourceId

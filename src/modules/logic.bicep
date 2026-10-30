@@ -7,6 +7,8 @@ targetScope = 'subscription'
 
 param delimiter string
 param deploymentNameSuffix string
+@allowed(['customer-il2', 'legacy'])
+param deploymentProfile string = 'legacy'
 param environmentAbbreviation string
 param identifier string
 param location string
@@ -47,6 +49,7 @@ module namingConventions 'naming-convention.bicep' = [for network in networks: {
   name: 'naming-convention-${network.shortName}-${deploymentNameSuffix}'
   params: {
     delimiter: delimiter
+    deploymentProfile: deploymentProfile
     environmentAbbreviation: environmentAbbreviation
     identifier: identifier
     locationAbbreviation: locations[location].abbreviation

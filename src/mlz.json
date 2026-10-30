@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "186370419513569005"
+      "templateHash": "17927659920306881692"
     }
   },
   "parameters": {
@@ -157,7 +157,7 @@
       "type": "bool",
       "defaultValue": false,
       "metadata": {
-        "description": "When set to \"true\", deploys Active Directory Domain Services (ADDS) domain controllers in the identity tier. Requires deployIdentity to be true. Default value = \"false\"."
+        "description": "Legacy profile only: deploys Active Directory Domain Services (ADDS) domain controllers when deployIdentity is also true. Ignored by customer-il2. Default value = \"false\"."
       }
     },
     "deployAzureGatewaySubnet": {
@@ -194,14 +194,14 @@
       "type": "bool",
       "defaultValue": false,
       "metadata": {
-        "description": "Choose to deploy the identity resources. The identity resoures are not required if you plan to use cloud identities."
+        "description": "Legacy profile only: choose to deploy the identity resources. Ignored by customer-il2."
       }
     },
     "deployLinuxVirtualMachine": {
       "type": "bool",
       "defaultValue": false,
       "metadata": {
-        "description": "When set to \"true\", provisions Linux Virtual Machine Host only. Default value = \"false\"."
+        "description": "Legacy profile only: provisions a Linux jump-box virtual machine. Ignored by customer-il2. Default value = \"false\"."
       }
     },
     "deploymentNameSuffix": {
@@ -209,6 +209,17 @@
       "defaultValue": "[utcNow()]",
       "metadata": {
         "description": "A suffix to use for naming deployments uniquely. Default value = \"utcNow()\"."
+      }
+    },
+    "deploymentProfile": {
+      "type": "string",
+      "defaultValue": "customer-il2",
+      "allowedValues": [
+        "customer-il2",
+        "legacy"
+      ],
+      "metadata": {
+        "description": "customer-il2 deploys only Hub and Operations with SCCA/region/IL2 naming and disables MLZ Identity, ADDS, and jump-box workloads regardless of their switches. legacy preserves the upstream topology and resource naming."
       }
     },
     "deployNetworkWatcherTrafficAnalytics": {
@@ -236,7 +247,7 @@
       "type": "bool",
       "defaultValue": false,
       "metadata": {
-        "description": "When set to \"true\", provisions Windows Virtual Machine Host only. Default value = \"false\"."
+        "description": "Legacy profile only: provisions a Windows jump-box virtual machine. Ignored by customer-il2. Default value = \"false\"."
       }
     },
     "dnsServers": {
@@ -528,7 +539,7 @@
       "minLength": 1,
       "maxLength": 5,
       "metadata": {
-        "description": "1-5 alphanumeric characters without whitespace, used to name resources and generate uniqueness for resources within your subscription. Ideally, the value should represent an organization, department, or business unit."
+        "description": "1-5 lowercase alphanumeric characters. Customer/deployment suffix for customer-il2 (mlz produces names ending in -mlz); legacy retains the upstream identifier position. Also used in global-resource hash seeds."
       }
     },
     "identityNetworkSecurityGroupDiagnosticsLogs": {
@@ -629,7 +640,7 @@
     },
     "linuxVmAdminPasswordOrKey": {
       "type": "securestring",
-      "defaultValue": "[if(parameters('deployLinuxVirtualMachine'), '', newGuid())]",
+      "defaultValue": "[if(and(equals(parameters('deploymentProfile'), 'legacy'), parameters('deployLinuxVirtualMachine')), '', newGuid())]",
       "minLength": 12,
       "metadata": {
         "description": "The administrator password or public SSH key for the Linux Virtual Machine for remote access. See the following URL for valid settings: https://learn.microsoft.com/azure/virtual-machines/linux/faq#what-are-the-password-requirements-when-creating-a-vm-."
@@ -1054,7 +1065,7 @@
     },
     "windowsVmAdminPassword": {
       "type": "securestring",
-      "defaultValue": "[if(parameters('deployWindowsVirtualMachine'), '', newGuid())]",
+      "defaultValue": "[if(and(equals(parameters('deploymentProfile'), 'legacy'), parameters('deployWindowsVirtualMachine')), '', newGuid())]",
       "minLength": 12,
       "metadata": {
         "description": "The administrator password the Windows Virtual Machine for remote access. It must be > 12 characters in length. See the following URL for valid settings: https://learn.microsoft.com/azure/virtual-machines/windows/faq#what-are-the-password-requirements-when-creating-a-vm-."
@@ -1122,7 +1133,13 @@
         "input": "[cidrHost(parameters('firewallClientSubnetAddressPrefix'), range(0, 4)[copyIndex('firewallClientUsableIpAddresses')])]"
       }
     ],
-    "firewallClientPrivateIpAddress": "[variables('firewallClientUsableIpAddresses')[3]]"
+    "firewallClientPrivateIpAddress": "[variables('firewallClientUsableIpAddresses')[3]]",
+    "isLegacyProfile": "[equals(parameters('deploymentProfile'), 'legacy')]",
+    "effectiveDeployIdentity": "[and(variables('isLegacyProfile'), parameters('deployIdentity'))]",
+    "effectiveDeployActiveDirectoryDomainServices": "[and(variables('effectiveDeployIdentity'), parameters('deployActiveDirectoryDomainServices'))]",
+    "effectiveDeployLinuxVirtualMachine": "[and(variables('isLegacyProfile'), parameters('deployLinuxVirtualMachine'))]",
+    "effectiveDeployWindowsVirtualMachine": "[and(variables('isLegacyProfile'), parameters('deployWindowsVirtualMachine'))]",
+    "activeNetworks": "[concat(createArray(createObject('name', 'hub', 'shortName', 'hub', 'subscriptionId', parameters('hubSubscriptionId'), 'nsgDiagLogs', parameters('hubNetworkSecurityGroupDiagnosticsLogs'), 'nsgRules', parameters('hubNetworkSecurityGroupRules'), 'vnetAddressPrefix', parameters('hubVirtualNetworkAddressPrefix'), 'vnetDiagLogs', parameters('hubVirtualNetworkDiagnosticsLogs'), 'vnetDiagMetrics', parameters('hubVirtualNetworkDiagnosticsMetrics'), 'subnetAddressPrefix', parameters('hubSubnetAddressPrefix')), createObject('name', 'operations', 'shortName', 'ops', 'subscriptionId', parameters('operationsSubscriptionId'), 'nsgDiagLogs', parameters('operationsNetworkSecurityGroupDiagnosticsLogs'), 'nsgRules', parameters('operationsNetworkSecurityGroupRules'), 'vnetAddressPrefix', parameters('operationsVirtualNetworkAddressPrefix'), 'vnetDiagLogs', parameters('operationsVirtualNetworkDiagnosticsLogs'), 'vnetDiagMetrics', parameters('operationsVirtualNetworkDiagnosticsMetrics'), 'subnetAddressPrefix', parameters('operationsSubnetAddressPrefix'))), if(variables('isLegacyProfile'), createArray(createObject('name', 'sharedServices', 'shortName', 'svcs', 'subscriptionId', parameters('sharedServicesSubscriptionId'), 'nsgDiagLogs', parameters('sharedServicesNetworkSecurityGroupDiagnosticsLogs'), 'nsgRules', parameters('sharedServicesNetworkSecurityGroupRules'), 'vnetAddressPrefix', parameters('sharedServicesVirtualNetworkAddressPrefix'), 'vnetDiagLogs', parameters('sharedServicesVirtualNetworkDiagnosticsLogs'), 'vnetDiagMetrics', parameters('sharedServicesVirtualNetworkDiagnosticsMetrics'), 'subnetAddressPrefix', parameters('sharedServicesSubnetAddressPrefix'))), createArray()), if(variables('effectiveDeployIdentity'), createArray(createObject('name', 'identity', 'shortName', 'id', 'subscriptionId', parameters('identitySubscriptionId'), 'nsgDiagLogs', parameters('identityNetworkSecurityGroupDiagnosticsLogs'), 'nsgRules', parameters('identityNetworkSecurityGroupRules'), 'vnetAddressPrefix', parameters('identityVirtualNetworkAddressPrefix'), 'vnetDiagLogs', parameters('identityVirtualNetworkDiagnosticsLogs'), 'vnetDiagMetrics', parameters('identityVirtualNetworkDiagnosticsMetrics'), 'subnetAddressPrefix', parameters('identitySubnetAddressPrefix'))), createArray()))]"
   },
   "resources": [
     {
@@ -1144,7 +1161,7 @@
             "value": "[parameters('azureGatewaySubnetAddressPrefix')]"
           },
           "deployIdentity": {
-            "value": "[parameters('deployIdentity')]"
+            "value": "[variables('effectiveDeployIdentity')]"
           },
           "deploymentNameSuffix": {
             "value": "[parameters('deploymentNameSuffix')]"
@@ -1160,6 +1177,9 @@
           },
           "enableProxy": {
             "value": "[parameters('enableProxy')]"
+          },
+          "deploymentProfile": {
+            "value": "[parameters('deploymentProfile')]"
           },
           "environmentAbbreviation": {
             "value": "[parameters('environmentAbbreviation')]"
@@ -1178,7 +1198,7 @@
               "threatIntelMode": "[parameters('firewallThreatIntelMode')]"
             }
           },
-          "firewallRuleCollectionGroups": "[if(empty(parameters('customFirewallRuleCollectionGroups')), createObject('value', createArray(createObject('name', 'MLZ-DefaultCollectionGroup', 'properties', createObject('priority', 100, 'ruleCollections', createArray(createObject('name', 'NetworkRules', 'priority', 100, 'ruleCollectionType', 'FirewallPolicyFilterRuleCollection', 'action', createObject('type', 'Allow'), 'rules', union(createArray(createObject('name', 'Allow-LAW-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('Tcp'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray(cidrHost(parameters('operationsVirtualNetworkAddressPrefix'), 3)), 'destinationPorts', createArray('443')), createObject('name', 'Allow-AAD-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('Tcp'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray('AzureActiveDirectory'), 'destinationPorts', createArray('443')), createObject('name', 'Allow-KV-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('Tcp'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray('AzureKeyVault'), 'destinationPorts', createArray('443')), createObject('name', 'Allow-KV-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('Tcp'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray('AzureKeyVault'), 'destinationPorts', createArray('443')), createObject('name', 'Allow-ARM-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('Tcp'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray('AzureResourceManager'), 'destinationPorts', createArray('443'))), if(parameters('deployActiveDirectoryDomainServices'), createArray(createObject('name', 'Allow-ADDS-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('TCP'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray(cidrHost(parameters('identityVirtualNetworkAddressPrefix'), 5), cidrHost(parameters('identityVirtualNetworkAddressPrefix'), 6)), 'destinationPorts', createArray('53', '88', '135', '389', '445', '464', '636', '3268', '3269')), createObject('name', 'Allow-ADDS-UDP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('UDP'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray(cidrHost(parameters('identitySubnetAddressPrefix'), 5), cidrHost(parameters('identitySubnetAddressPrefix'), 6)), 'destinationPorts', createArray('53', '88', '123', '389', '464'))), createArray()), if(or(parameters('deployLinuxVirtualMachine'), parameters('deployWindowsVirtualMachine')), createArray(createObject('name', 'Allow-KMS-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('Tcp'), 'sourceAddresses', union(if(and(parameters('deployLinuxVirtualMachine'), parameters('deployWindowsVirtualMachine')), createArray(cidrHost(parameters('hubSubnetAddressPrefix'), 4), cidrHost(parameters('hubSubnetAddressPrefix'), 5)), createArray(cidrHost(parameters('hubSubnetAddressPrefix'), 4))), if(parameters('deployActiveDirectoryDomainServices'), createArray(cidrHost(parameters('identitySubnetAddressPrefix'), 5), cidrHost(parameters('identitySubnetAddressPrefix'), 6)), createArray())), 'destinationAddresses', createArray(), 'destinationFqdns', createArray(format('azkms.{0}', environment().suffixes.storage), format('kms.{0}', environment().suffixes.storage)), 'destinationPorts', createArray('1688'), 'sourceIpGroups', createArray(), 'destinationIpGroups', createArray())), createArray()))), createObject('name', 'ApplicationRules', 'priority', 200, 'ruleCollectionType', 'FirewallPolicyFilterRuleCollection', 'action', createObject('type', 'Allow'), 'rules', if(or(parameters('deployLinuxVirtualMachine'), parameters('deployWindowsVirtualMachine')), createArray(createObject('name', 'Allow-WindowsUpdate', 'ruleType', 'ApplicationRule', 'protocols', createArray(createObject('protocolType', 'Https', 'port', 443)), 'fqdnTags', createArray('WindowsUpdate'), 'webCategories', createArray(), 'targetFqdns', createArray(), 'targetUrls', createArray(), 'terminateTLS', false(), 'sourceAddresses', union(if(and(parameters('deployLinuxVirtualMachine'), parameters('deployWindowsVirtualMachine')), createArray(cidrHost(parameters('hubSubnetAddressPrefix'), 4), cidrHost(parameters('hubSubnetAddressPrefix'), 5)), createArray(cidrHost(parameters('hubSubnetAddressPrefix'), 4))), if(parameters('deployActiveDirectoryDomainServices'), createArray(cidrHost(parameters('identitySubnetAddressPrefix'), 5), cidrHost(parameters('identitySubnetAddressPrefix'), 6)), createArray())), 'destinationAddresses', createArray(), 'sourceIpGroups', createArray())), createArray()))))))), createObject('value', parameters('customFirewallRuleCollectionGroups')))]",
+          "firewallRuleCollectionGroups": "[if(empty(parameters('customFirewallRuleCollectionGroups')), createObject('value', createArray(createObject('name', 'MLZ-DefaultCollectionGroup', 'properties', createObject('priority', 100, 'ruleCollections', createArray(createObject('name', 'NetworkRules', 'priority', 100, 'ruleCollectionType', 'FirewallPolicyFilterRuleCollection', 'action', createObject('type', 'Allow'), 'rules', union(createArray(createObject('name', 'Allow-LAW-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('Tcp'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray(cidrHost(parameters('operationsVirtualNetworkAddressPrefix'), 3)), 'destinationPorts', createArray('443')), createObject('name', 'Allow-AAD-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('Tcp'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray('AzureActiveDirectory'), 'destinationPorts', createArray('443')), createObject('name', 'Allow-KV-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('Tcp'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray('AzureKeyVault'), 'destinationPorts', createArray('443')), createObject('name', 'Allow-KV-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('Tcp'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray('AzureKeyVault'), 'destinationPorts', createArray('443')), createObject('name', 'Allow-ARM-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('Tcp'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray('AzureResourceManager'), 'destinationPorts', createArray('443'))), if(variables('effectiveDeployActiveDirectoryDomainServices'), createArray(createObject('name', 'Allow-ADDS-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('TCP'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray(cidrHost(parameters('identityVirtualNetworkAddressPrefix'), 5), cidrHost(parameters('identityVirtualNetworkAddressPrefix'), 6)), 'destinationPorts', createArray('53', '88', '135', '389', '445', '464', '636', '3268', '3269')), createObject('name', 'Allow-ADDS-UDP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('UDP'), 'sourceAddresses', createArray(parameters('firewallSupernetIPAddress')), 'destinationAddresses', createArray(cidrHost(parameters('identitySubnetAddressPrefix'), 5), cidrHost(parameters('identitySubnetAddressPrefix'), 6)), 'destinationPorts', createArray('53', '88', '123', '389', '464'))), createArray()), if(or(variables('effectiveDeployLinuxVirtualMachine'), variables('effectiveDeployWindowsVirtualMachine')), createArray(createObject('name', 'Allow-KMS-TCP', 'ruleType', 'NetworkRule', 'ipProtocols', createArray('Tcp'), 'sourceAddresses', union(if(and(variables('effectiveDeployLinuxVirtualMachine'), variables('effectiveDeployWindowsVirtualMachine')), createArray(cidrHost(parameters('hubSubnetAddressPrefix'), 4), cidrHost(parameters('hubSubnetAddressPrefix'), 5)), createArray(cidrHost(parameters('hubSubnetAddressPrefix'), 4))), if(variables('effectiveDeployActiveDirectoryDomainServices'), createArray(cidrHost(parameters('identitySubnetAddressPrefix'), 5), cidrHost(parameters('identitySubnetAddressPrefix'), 6)), createArray())), 'destinationAddresses', createArray(), 'destinationFqdns', createArray(format('azkms.{0}', environment().suffixes.storage), format('kms.{0}', environment().suffixes.storage)), 'destinationPorts', createArray('1688'), 'sourceIpGroups', createArray(), 'destinationIpGroups', createArray())), createArray()))), createObject('name', 'ApplicationRules', 'priority', 200, 'ruleCollectionType', 'FirewallPolicyFilterRuleCollection', 'action', createObject('type', 'Allow'), 'rules', if(or(variables('effectiveDeployLinuxVirtualMachine'), variables('effectiveDeployWindowsVirtualMachine')), createArray(createObject('name', 'Allow-WindowsUpdate', 'ruleType', 'ApplicationRule', 'protocols', createArray(createObject('protocolType', 'Https', 'port', 443)), 'fqdnTags', createArray('WindowsUpdate'), 'webCategories', createArray(), 'targetFqdns', createArray(), 'targetUrls', createArray(), 'terminateTLS', false(), 'sourceAddresses', union(if(and(variables('effectiveDeployLinuxVirtualMachine'), variables('effectiveDeployWindowsVirtualMachine')), createArray(cidrHost(parameters('hubSubnetAddressPrefix'), 4), cidrHost(parameters('hubSubnetAddressPrefix'), 5)), createArray(cidrHost(parameters('hubSubnetAddressPrefix'), 4))), if(variables('effectiveDeployActiveDirectoryDomainServices'), createArray(cidrHost(parameters('identitySubnetAddressPrefix'), 5), cidrHost(parameters('identitySubnetAddressPrefix'), 6)), createArray())), 'destinationAddresses', createArray(), 'sourceIpGroups', createArray())), createArray()))))))), createObject('value', parameters('customFirewallRuleCollectionGroups')))]",
           "identifier": {
             "value": "[parameters('identifier')]"
           },
@@ -1186,7 +1206,7 @@
             "value": "[parameters('location')]"
           },
           "networks": {
-            "value": "[union(createArray(createObject('name', 'hub', 'shortName', 'hub', 'subscriptionId', parameters('hubSubscriptionId'), 'nsgDiagLogs', parameters('hubNetworkSecurityGroupDiagnosticsLogs'), 'nsgRules', parameters('hubNetworkSecurityGroupRules'), 'vnetAddressPrefix', parameters('hubVirtualNetworkAddressPrefix'), 'vnetDiagLogs', parameters('hubVirtualNetworkDiagnosticsLogs'), 'vnetDiagMetrics', parameters('hubVirtualNetworkDiagnosticsMetrics'), 'subnetAddressPrefix', parameters('hubSubnetAddressPrefix')), createObject('name', 'operations', 'shortName', 'ops', 'subscriptionId', parameters('operationsSubscriptionId'), 'nsgDiagLogs', parameters('operationsNetworkSecurityGroupDiagnosticsLogs'), 'nsgRules', parameters('operationsNetworkSecurityGroupRules'), 'vnetAddressPrefix', parameters('operationsVirtualNetworkAddressPrefix'), 'vnetDiagLogs', parameters('operationsVirtualNetworkDiagnosticsLogs'), 'vnetDiagMetrics', parameters('operationsVirtualNetworkDiagnosticsMetrics'), 'subnetAddressPrefix', parameters('operationsSubnetAddressPrefix')), createObject('name', 'sharedServices', 'shortName', 'svcs', 'subscriptionId', parameters('sharedServicesSubscriptionId'), 'nsgDiagLogs', parameters('sharedServicesNetworkSecurityGroupDiagnosticsLogs'), 'nsgRules', parameters('sharedServicesNetworkSecurityGroupRules'), 'vnetAddressPrefix', parameters('sharedServicesVirtualNetworkAddressPrefix'), 'vnetDiagLogs', parameters('sharedServicesVirtualNetworkDiagnosticsLogs'), 'vnetDiagMetrics', parameters('sharedServicesVirtualNetworkDiagnosticsMetrics'), 'subnetAddressPrefix', parameters('sharedServicesSubnetAddressPrefix'))), if(parameters('deployIdentity'), createArray(createObject('name', 'identity', 'shortName', 'id', 'subscriptionId', parameters('identitySubscriptionId'), 'nsgDiagLogs', parameters('identityNetworkSecurityGroupDiagnosticsLogs'), 'nsgRules', parameters('identityNetworkSecurityGroupRules'), 'vnetAddressPrefix', parameters('identityVirtualNetworkAddressPrefix'), 'vnetDiagLogs', parameters('identityVirtualNetworkDiagnosticsLogs'), 'vnetDiagMetrics', parameters('identityVirtualNetworkDiagnosticsMetrics'), 'subnetAddressPrefix', parameters('identitySubnetAddressPrefix'))), createArray()))]"
+            "value": "[variables('activeNetworks')]"
           },
           "tags": {
             "value": "[parameters('tags')]"
@@ -1199,7 +1219,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "17349272822234749759"
+              "templateHash": "5406818587707424160"
             }
           },
           "parameters": {
@@ -1220,6 +1240,14 @@
             },
             "deploymentNameSuffix": {
               "type": "string"
+            },
+            "deploymentProfile": {
+              "type": "string",
+              "defaultValue": "legacy",
+              "allowedValues": [
+                "customer-il2",
+                "legacy"
+              ]
             },
             "dnsServers": {
               "type": "array"
@@ -1250,8 +1278,20 @@
             }
           },
           "variables": {
+            "copy": [
+              {
+                "name": "spokeEntries",
+                "count": "[length(variables('spokes'))]",
+                "input": {
+                  "name": "[variables('spokes')[copyIndex('spokeEntries')].name]",
+                  "index": "[copyIndex('spokeEntries')]"
+                }
+              }
+            ],
             "hubSubscriptionId": "[filter(parameters('networks'), lambda('network', equals(lambdaVariables('network').name, 'hub')))[0].subscriptionId]",
-            "spokes": "[filter(parameters('networks'), lambda('network', not(equals(lambdaVariables('network').name, 'hub'))))]"
+            "spokes": "[filter(parameters('networks'), lambda('network', not(equals(lambdaVariables('network').name, 'hub'))))]",
+            "spokeIndexesByTier": "[toObject(variables('spokeEntries'), lambda('tier', lambdaVariables('tier').name), lambda('tier', lambdaVariables('tier').index))]",
+            "hasIdentity": "[and(parameters('deployIdentity'), contains(map(variables('spokes'), lambda('spoke', lambdaVariables('spoke').name)), 'identity'))]"
           },
           "resources": [
             {
@@ -1270,6 +1310,9 @@
                   },
                   "deploymentNameSuffix": {
                     "value": "[parameters('deploymentNameSuffix')]"
+                  },
+                  "deploymentProfile": {
+                    "value": "[parameters('deploymentProfile')]"
                   },
                   "environmentAbbreviation": {
                     "value": "[parameters('environmentAbbreviation')]"
@@ -1291,7 +1334,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.39.26.7824",
-                      "templateHash": "4387242257055463833"
+                      "templateHash": "8346408507033199995"
                     }
                   },
                   "parameters": {
@@ -1300,6 +1343,14 @@
                     },
                     "deploymentNameSuffix": {
                       "type": "string"
+                    },
+                    "deploymentProfile": {
+                      "type": "string",
+                      "defaultValue": "legacy",
+                      "allowedValues": [
+                        "customer-il2",
+                        "legacy"
+                      ]
                     },
                     "environmentAbbreviation": {
                       "type": "string"
@@ -1769,6 +1820,9 @@
                           "delimiter": {
                             "value": "[parameters('delimiter')]"
                           },
+                          "deploymentProfile": {
+                            "value": "[parameters('deploymentProfile')]"
+                          },
                           "environmentAbbreviation": {
                             "value": "[parameters('environmentAbbreviation')]"
                           },
@@ -1795,7 +1849,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.39.26.7824",
-                              "templateHash": "2047146925613763360"
+                              "templateHash": "14100323944460034794"
                             }
                           },
                           "parameters": {
@@ -1804,6 +1858,14 @@
                               "allowedValues": [
                                 "",
                                 "-"
+                              ]
+                            },
+                            "deploymentProfile": {
+                              "type": "string",
+                              "defaultValue": "legacy",
+                              "allowedValues": [
+                                "customer-il2",
+                                "legacy"
                               ]
                             },
                             "environmentAbbreviation": {
@@ -1834,7 +1896,7 @@
                             },
                             "namingConvention": "[format('{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}{10}{11}', toLower(parameters('identifier')), parameters('delimiter'), parameters('environmentAbbreviation'), parameters('delimiter'), parameters('locationAbbreviation'), parameters('delimiter'), parameters('networkName'), parameters('delimiter'), variables('tokens').resource, parameters('delimiter'), variables('tokens').purpose, if(empty(parameters('stampIndex')), '', format('{0}{1}', parameters('delimiter'), parameters('stampIndex'))))]",
                             "namingConvention_Service": "[format('{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}{10}{11}{12}{13}', toLower(parameters('identifier')), parameters('delimiter'), parameters('environmentAbbreviation'), parameters('delimiter'), parameters('locationAbbreviation'), parameters('delimiter'), parameters('networkName'), parameters('delimiter'), variables('tokens').service, parameters('delimiter'), variables('tokens').resource, parameters('delimiter'), variables('tokens').purpose, if(empty(parameters('stampIndex')), '', format('{0}{1}', parameters('delimiter'), parameters('stampIndex'))))]",
-                            "names": {
+                            "legacyNames": {
                               "actionGroup": "[replace(variables('namingConvention'), variables('tokens').resource, parameters('resourceAbbreviations').actionGroups)]",
                               "applicationGroup": "[replace(variables('namingConvention'), variables('tokens').resource, parameters('resourceAbbreviations').applicationGroups)]",
                               "applicationInsights": "[replace(variables('namingConvention'), variables('tokens').resource, parameters('resourceAbbreviations').applicationInsights)]",
@@ -1931,6 +1993,60 @@
                               "workspaceDiagnosticSetting": "[replace(replace(variables('namingConvention_Service'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').workspaces)]",
                               "workspaceNetworkInterface": "[replace(replace(variables('namingConvention_Service'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, parameters('resourceAbbreviations').workspaces)]",
                               "workspacePrivateEndpoint": "[replace(replace(variables('namingConvention_Service'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, parameters('resourceAbbreviations').workspaces)]"
+                            },
+                            "isCustomerProfile": "[and(equals(parameters('deploymentProfile'), 'customer-il2'), contains(createArray('hub', 'operations'), parameters('networkName')))]",
+                            "customerContext": "[format('scca{0}{1}{2}il2', parameters('delimiter'), parameters('locationAbbreviation'), parameters('delimiter'))]",
+                            "customerSuffix": "[format('{0}{1}', parameters('delimiter'), toLower(parameters('identifier')))]",
+                            "customerSingleton": "[format('{0}{1}{2}{3}{4}{5}', variables('tokens').resource, parameters('delimiter'), variables('customerContext'), parameters('delimiter'), variables('tokens').purpose, variables('customerSuffix'))]",
+                            "customerSingletonService": "[format('{0}{1}{2}{3}{4}{5}{6}{7}', variables('tokens').resource, parameters('delimiter'), variables('customerContext'), parameters('delimiter'), variables('tokens').service, parameters('delimiter'), variables('tokens').purpose, variables('customerSuffix'))]",
+                            "customerTier": "[format('{0}{1}{2}{3}{4}{5}{6}{7}', variables('tokens').resource, parameters('delimiter'), variables('customerContext'), parameters('delimiter'), parameters('networkName'), parameters('delimiter'), variables('tokens').purpose, variables('customerSuffix'))]",
+                            "customerTierService": "[format('{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}', variables('tokens').resource, parameters('delimiter'), variables('customerContext'), parameters('delimiter'), parameters('networkName'), parameters('delimiter'), variables('tokens').service, parameters('delimiter'), variables('tokens').purpose, variables('customerSuffix'))]",
+                            "customerNames": {
+                              "azureFirewall": "[replace(variables('customerSingleton'), variables('tokens').resource, parameters('resourceAbbreviations').azureFirewalls)]",
+                              "azureFirewallPolicy": "[replace(variables('customerSingleton'), variables('tokens').resource, parameters('resourceAbbreviations').firewallPolicies)]",
+                              "azureFirewallPublicIPAddress": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').publicIPAddresses), variables('tokens').service, parameters('resourceAbbreviations').azureFirewalls)]",
+                              "azureFirewallPublicIPAddressDiagnosticSetting": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}{2}', parameters('resourceAbbreviations').publicIPAddresses, parameters('delimiter'), parameters('resourceAbbreviations').azureFirewalls))]",
+                              "azureFirewallDiagnosticSetting": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').azureFirewalls)]",
+                              "bastionHost": "[replace(variables('customerSingleton'), variables('tokens').resource, parameters('resourceAbbreviations').bastionHosts)]",
+                              "bastionHostDiagnosticSetting": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').bastionHosts)]",
+                              "bastionHostNetworkSecurityGroup": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').networkSecurityGroups), variables('tokens').service, parameters('resourceAbbreviations').bastionHosts)]",
+                              "bastionHostNetworkSecurityGroupDiagnosticSetting": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}{2}', parameters('resourceAbbreviations').networkSecurityGroups, parameters('delimiter'), parameters('resourceAbbreviations').bastionHosts))]",
+                              "bastionHostPublicIPAddress": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').publicIPAddresses), variables('tokens').service, parameters('resourceAbbreviations').bastionHosts)]",
+                              "bastionHostPublicIPAddressDiagnosticSetting": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}{2}', parameters('resourceAbbreviations').publicIPAddresses, parameters('delimiter'), parameters('resourceAbbreviations').bastionHosts))]",
+                              "keyVault": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').keyVaults)]",
+                              "keyVaultDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').keyVaults)]",
+                              "keyVaultNetworkInterface": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, parameters('resourceAbbreviations').keyVaults)]",
+                              "keyVaultPrivateEndpoint": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, parameters('resourceAbbreviations').keyVaults)]",
+                              "logAnalyticsWorkspace": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').logAnalyticsWorkspaces)]",
+                              "logAnalyticsWorkspaceDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').logAnalyticsWorkspaces)]",
+                              "networkSecurityGroup": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').networkSecurityGroups)]",
+                              "networkSecurityGroupDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').networkSecurityGroups)]",
+                              "networkWatcherFlowLogsNetworkSecurityGroup": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkWatchersFlowLogs), variables('tokens').service, parameters('resourceAbbreviations').networkSecurityGroups)]",
+                              "networkWatcherFlowLogsVirtualNetwork": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkWatchersFlowLogs), variables('tokens').service, parameters('resourceAbbreviations').virtualNetworks)]",
+                              "privateLinkScope": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').privateLinkScopes)]",
+                              "privateLinkScopeNetworkInterface": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, parameters('resourceAbbreviations').privateLinkScopes)]",
+                              "privateLinkScopePrivateEndpoint": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, parameters('resourceAbbreviations').privateLinkScopes)]",
+                              "resourceGroup": "[replace(replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').resourceGroups), format('{0}{1}', parameters('delimiter'), variables('tokens').purpose), '')]",
+                              "routeTable": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').routeTables)]",
+                              "storageAccount": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').storageAccounts)]",
+                              "storageAccountBlobDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}blob', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountBlobNetworkInterface": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, format('{0}{1}blob', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountBlobPrivateEndpoint": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, format('{0}{1}blob', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').storageAccounts)]",
+                              "storageAccountFileDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}file', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountFileNetworkInterface": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, format('{0}{1}file', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountFilePrivateEndpoint": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, format('{0}{1}file', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountQueueDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}queue', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountQueueNetworkInterface": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, format('{0}{1}queue', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountQueuePrivateEndpoint": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, format('{0}{1}queue', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountTableDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}table', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountTableNetworkInterface": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, format('{0}{1}table', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountTablePrivateEndpoint": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, format('{0}{1}table', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "subnet": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').subnets)]",
+                              "userAssignedIdentity": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').userAssignedIdentities)]",
+                              "virtualMachineNetworkInterfaceDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}{2}', parameters('resourceAbbreviations').networkInterfaces, parameters('delimiter'), parameters('resourceAbbreviations').virtualMachines))]",
+                              "virtualNetwork": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').virtualNetworks)]",
+                              "virtualNetworkDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').virtualNetworks)]"
                             }
                           },
                           "resources": [],
@@ -1941,7 +2057,7 @@
                             },
                             "names": {
                               "type": "object",
-                              "value": "[variables('names')]"
+                              "value": "[if(variables('isCustomerProfile'), union(variables('legacyNames'), variables('customerNames')), variables('legacyNames'))]"
                             },
                             "tokens": {
                               "type": "object",
@@ -2096,7 +2212,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.39.26.7824",
-                      "templateHash": "8832857699127867741"
+                      "templateHash": "11941442182446791877"
                     }
                   },
                   "parameters": {
@@ -2211,6 +2327,16 @@
                         "count": "[length(parameters('tiers'))]",
                         "input": "[reference(subscriptionResourceId(parameters('tiers')[copyIndex()].subscriptionId, 'Microsoft.Resources/deployments', format('deploy-rg-{0}-{1}', parameters('tiers')[copyIndex()].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.name.value]"
                       }
+                    },
+                    "tiers": {
+                      "type": "array",
+                      "copy": {
+                        "count": "[length(parameters('tiers'))]",
+                        "input": {
+                          "name": "[parameters('tiers')[copyIndex()].name]",
+                          "resourceGroupName": "[reference(subscriptionResourceId(parameters('tiers')[copyIndex()].subscriptionId, 'Microsoft.Resources/deployments', format('deploy-rg-{0}-{1}', parameters('tiers')[copyIndex()].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.name.value]"
+                        }
+                      }
                     }
                   }
                 }
@@ -2244,6 +2370,9 @@
                   },
                   "deployBastion": {
                     "value": "[parameters('deployBastion')]"
+                  },
+                  "deploymentProfile": {
+                    "value": "[parameters('deploymentProfile')]"
                   },
                   "deploymentNameSuffix": {
                     "value": "[parameters('deploymentNameSuffix')]"
@@ -2291,7 +2420,7 @@
                     "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', format('get-logic-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.mlzTags.value]"
                   },
                   "resourceGroupName": {
-                    "value": "[filter(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-resource-groups-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.names.value, lambda('name', contains(lambdaVariables('name'), 'hub')))[0]]"
+                    "value": "[toObject(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-resource-groups-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.tiers.value, lambda('tier', lambdaVariables('tier').name), lambda('tier', lambdaVariables('tier').resourceGroupName)).hub]"
                   },
                   "subscriptionId": {
                     "value": "[variables('hubSubscriptionId')]"
@@ -2318,7 +2447,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.39.26.7824",
-                      "templateHash": "9496001559948279181"
+                      "templateHash": "11924828025443516787"
                     }
                   },
                   "parameters": {
@@ -2339,6 +2468,14 @@
                     },
                     "deploymentNameSuffix": {
                       "type": "string"
+                    },
+                    "deploymentProfile": {
+                      "type": "string",
+                      "defaultValue": "legacy",
+                      "allowedValues": [
+                        "customer-il2",
+                        "legacy"
+                      ]
                     },
                     "dnsServers": {
                       "type": "array"
@@ -2412,6 +2549,13 @@
                     }
                   },
                   "variables": {
+                    "copy": [
+                      {
+                        "name": "customPublicIPAddressNames",
+                        "count": "[length(range(1, parameters('firewallCustomPipCount')))]",
+                        "input": "[if(equals(parameters('deploymentProfile'), 'customer-il2'), replace(parameters('tier').namingConvention.azureFirewallPublicIPAddress, parameters('tokens').purpose, format('client{0}{1}', parameters('delimiter'), range(1, parameters('firewallCustomPipCount'))[copyIndex('customPublicIPAddressNames')])), format('{0}{1}{2}', replace(parameters('tier').namingConvention.azureFirewallPublicIPAddress, parameters('tokens').purpose, 'client'), parameters('delimiter'), range(1, parameters('firewallCustomPipCount'))[copyIndex('customPublicIPAddressNames')]))]"
+                      }
+                    ],
                     "bastionNetworkSecurityGroupRules": [
                       {
                         "name": "AllowHttpsInBound",
@@ -3127,7 +3271,7 @@
                             "value": "[parameters('mlzTags')]"
                           },
                           "name": {
-                            "value": "[format('{0}{1}{2}', replace(parameters('tier').namingConvention.azureFirewallPublicIPAddress, parameters('tokens').purpose, 'client'), parameters('delimiter'), range(1, parameters('firewallCustomPipCount'))[copyIndex()])]"
+                            "value": "[variables('customPublicIPAddressNames')[sub(range(1, parameters('firewallCustomPipCount'))[copyIndex()], 1)]]"
                           },
                           "publicIpAllocationMethod": {
                             "value": "Static"
@@ -3218,6 +3362,9 @@
                           "customPipCount": {
                             "value": "[parameters('firewallCustomPipCount')]"
                           },
+                          "customPublicIPAddressNames": {
+                            "value": "[variables('customPublicIPAddressNames')]"
+                          },
                           "customPublicIPAddressNamePrefix": {
                             "value": "[format('{0}{1}', replace(parameters('tier').namingConvention.azureFirewallPublicIPAddress, parameters('tokens').purpose, 'client'), parameters('delimiter'))]"
                           },
@@ -3274,7 +3421,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.39.26.7824",
-                              "templateHash": "13183829701566645659"
+                              "templateHash": "18419276774100294934"
                             }
                           },
                           "parameters": {
@@ -3291,6 +3438,10 @@
                             "customPublicIPAddressNamePrefix": {
                               "type": "string",
                               "defaultValue": ""
+                            },
+                            "customPublicIPAddressNames": {
+                              "type": "array",
+                              "defaultValue": []
                             },
                             "dnsServers": {
                               "type": "array"
@@ -3362,7 +3513,7 @@
                                   "name": "[format('ipconfig-client-{0}', range(1, parameters('customPipCount'))[copyIndex('customIpConfigurations')])]",
                                   "properties": {
                                     "publicIPAddress": {
-                                      "id": "[resourceId(parameters('subscriptionId'), parameters('resourceGroupName'), 'Microsoft.Network/publicIPAddresses', format('{0}{1}', parameters('customPublicIPAddressNamePrefix'), range(1, parameters('customPipCount'))[copyIndex('customIpConfigurations')]))]"
+                                      "id": "[resourceId(parameters('subscriptionId'), parameters('resourceGroupName'), 'Microsoft.Network/publicIPAddresses', if(empty(parameters('customPublicIPAddressNames')), format('{0}{1}', parameters('customPublicIPAddressNamePrefix'), range(1, parameters('customPipCount'))[copyIndex('customIpConfigurations')]), parameters('customPublicIPAddressNames')[sub(range(1, parameters('customPipCount'))[copyIndex('customIpConfigurations')], 1)]))]"
                                     }
                                   }
                                 }
@@ -3610,7 +3761,7 @@
                     "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', format('get-logic-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.mlzTags.value]"
                   },
                   "resourceGroupName": {
-                    "value": "[filter(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-resource-groups-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.names.value, lambda('name', contains(lambdaVariables('name'), variables('spokes')[copyIndex()].name)))[0]]"
+                    "value": "[toObject(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-resource-groups-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.tiers.value, lambda('tier', lambdaVariables('tier').name), lambda('tier', lambdaVariables('tier').resourceGroupName))[variables('spokes')[copyIndex()].name]]"
                   },
                   "routeTableRouteNextHopIpAddress": {
                     "value": "[parameters('firewallSettings').clientPrivateIpAddress]"
@@ -4068,7 +4219,7 @@
                     "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-hub-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.virtualNetworkName.value]"
                   },
                   "resourceGroupName": {
-                    "value": "[filter(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-resource-groups-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.names.value, lambda('name', contains(lambdaVariables('name'), 'hub')))[0]]"
+                    "value": "[toObject(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-resource-groups-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.tiers.value, lambda('tier', lambdaVariables('tier').name), lambda('tier', lambdaVariables('tier').resourceGroupName)).hub]"
                   },
                   "spokeShortName": {
                     "value": "[variables('spokes')[copyIndex()].shortName]"
@@ -4201,7 +4352,7 @@
                     "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-hub-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.virtualNetworkResourceId.value]"
                   },
                   "resourceGroupName": {
-                    "value": "[filter(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-resource-groups-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.names.value, lambda('name', contains(lambdaVariables('name'), variables('spokes')[copyIndex()].name)))[0]]"
+                    "value": "[toObject(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-resource-groups-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.tiers.value, lambda('tier', lambdaVariables('tier').name), lambda('tier', lambdaVariables('tier').resourceGroupName))[variables('spokes')[copyIndex()].name]]"
                   },
                   "spokeShortName": {
                     "value": "[variables('spokes')[copyIndex()].shortName]"
@@ -4324,7 +4475,7 @@
                 "mode": "Incremental",
                 "parameters": {
                   "deployIdentity": {
-                    "value": "[parameters('deployIdentity')]"
+                    "value": "[variables('hasIdentity')]"
                   },
                   "deploymentNameSuffix": {
                     "value": "[parameters('deploymentNameSuffix')]"
@@ -4332,7 +4483,7 @@
                   "hubVirtualNetworkResourceId": {
                     "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-hub-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.virtualNetworkResourceId.value]"
                   },
-                  "identityVirtualNetworkResourceId": "[if(parameters('deployIdentity'), createObject('value', reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}-{1}', variables('spokes')[2].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.virtualNetworkResourceId.value), createObject('value', ''))]",
+                  "identityVirtualNetworkResourceId": "[if(variables('hasIdentity'), createObject('value', reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}-{1}', variables('spokes')[variables('spokeIndexesByTier').identity].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.virtualNetworkResourceId.value), createObject('value', ''))]",
                   "mlzTags": {
                     "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', format('get-logic-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.mlzTags.value]"
                   },
@@ -4340,7 +4491,7 @@
                     "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', format('get-logic-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.privateDnsZones.value]"
                   },
                   "resourceGroupName": {
-                    "value": "[filter(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-resource-groups-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.names.value, lambda('name', contains(lambdaVariables('name'), 'hub')))[0]]"
+                    "value": "[toObject(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-resource-groups-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.tiers.value, lambda('tier', lambdaVariables('tier').name), lambda('tier', lambdaVariables('tier').resourceGroupName)).hub]"
                   },
                   "subscriptionId": {
                     "value": "[variables('hubSubscriptionId')]"
@@ -4599,7 +4750,7 @@
             },
             "sharedServicesSubnetResourceId": {
               "type": "string",
-              "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}-{1}', variables('spokes')[1].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkSecurityGroupResourceId.value]"
+              "value": "[if(contains(map(variables('spokes'), lambda('spoke', lambdaVariables('spoke').name)), 'sharedServices'), reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}-{1}', variables('spokes')[variables('spokeIndexesByTier').sharedServices].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkSecurityGroupResourceId.value, '')]"
             },
             "tiers": {
               "type": "array",
@@ -4608,11 +4759,11 @@
                 "input": {
                   "name": "[parameters('networks')[copyIndex()].name]",
                   "namingConvention": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', format('get-logic-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.tiers.value[copyIndex()].namingConvention]",
-                  "networkSecurityGroupResourceId": "[union(createArray(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-hub-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkSecurityGroupResourceId.value, reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}-{1}', variables('spokes')[0].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkSecurityGroupResourceId.value, reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}-{1}', variables('spokes')[1].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkSecurityGroupResourceId.value), if(parameters('deployIdentity'), createArray(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}-{1}', variables('spokes')[2].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkSecurityGroupResourceId.value), createArray()))[copyIndex()]]",
+                  "networkSecurityGroupResourceId": "[if(equals(parameters('networks')[copyIndex()].name, 'hub'), reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-hub-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkSecurityGroupResourceId.value, reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}-{1}', variables('spokes')[variables('spokeIndexesByTier')[parameters('networks')[copyIndex()].name]].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkSecurityGroupResourceId.value)]",
                   "nsgDiagLogs": "[parameters('networks')[copyIndex()].nsgDiagLogs]",
-                  "resourceGroupName": "[filter(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-resource-groups-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.names.value, lambda('name', contains(lambdaVariables('name'), parameters('networks')[copyIndex()].name)))[0]]",
+                  "resourceGroupName": "[toObject(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-resource-groups-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.tiers.value, lambda('tier', lambdaVariables('tier').name), lambda('tier', lambdaVariables('tier').resourceGroupName))[parameters('networks')[copyIndex()].name]]",
                   "shortName": "[parameters('networks')[copyIndex()].shortName]",
-                  "subnetResourceId": "[union(createArray(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-hub-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.subnetResourceId.value, reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}-{1}', variables('spokes')[0].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.subnets.value[0].id, reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}-{1}', variables('spokes')[1].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.subnets.value[0].id), if(parameters('deployIdentity'), createArray(reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}-{1}', variables('spokes')[2].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.subnets.value[0].id), createArray()))[copyIndex()]]",
+                  "subnetResourceId": "[if(equals(parameters('networks')[copyIndex()].name, 'hub'), reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-hub-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.subnetResourceId.value, reference(subscriptionResourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}-{1}', variables('spokes')[variables('spokeIndexesByTier')[parameters('networks')[copyIndex()].name]].name, parameters('deploymentNameSuffix'))), '2025-04-01').outputs.subnets.value[0].id)]",
                   "subscriptionId": "[parameters('networks')[copyIndex()].subscriptionId]",
                   "vnetDiagLogs": "[parameters('networks')[copyIndex()].vnetDiagLogs]",
                   "vnetDiagMetrics": "[parameters('networks')[copyIndex()].vnetDiagMetrics]"
@@ -5177,7 +5328,7 @@
       ]
     },
     {
-      "condition": "[and(parameters('deployActiveDirectoryDomainServices'), parameters('deployIdentity'))]",
+      "condition": "[variables('effectiveDeployActiveDirectoryDomainServices')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "[format('deploy-adds-{0}', parameters('deploymentNameSuffix'))]",
@@ -6997,7 +7148,7 @@
       ]
     },
     {
-      "condition": "[or(or(parameters('deployBastion'), parameters('deployLinuxVirtualMachine')), parameters('deployWindowsVirtualMachine'))]",
+      "condition": "[or(or(parameters('deployBastion'), variables('effectiveDeployLinuxVirtualMachine')), variables('effectiveDeployWindowsVirtualMachine'))]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "[format('deploy-remote-access-{0}', parameters('deploymentNameSuffix'))]",
@@ -7028,13 +7179,13 @@
             "value": "[parameters('deployBastion')]"
           },
           "deployLinuxVirtualMachine": {
-            "value": "[parameters('deployLinuxVirtualMachine')]"
+            "value": "[variables('effectiveDeployLinuxVirtualMachine')]"
           },
           "deploymentNameSuffix": {
             "value": "[parameters('deploymentNameSuffix')]"
           },
           "deployWindowsVirtualMachine": {
-            "value": "[parameters('deployWindowsVirtualMachine')]"
+            "value": "[variables('effectiveDeployWindowsVirtualMachine')]"
           },
           "environmentAbbreviation": {
             "value": "[parameters('environmentAbbreviation')]"
@@ -10061,7 +10212,7 @@
             "value": "[parameters('firewallDiagnosticsMetrics')]"
           },
           "keyVaults": {
-            "value": "[union(createArray(reference(subscriptionResourceId(parameters('hubSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-diag-storage-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value), if(parameters('deployActiveDirectoryDomainServices'), createArray(reference(subscriptionResourceId(parameters('identitySubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-adds-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value), createArray()), if(or(parameters('deployLinuxVirtualMachine'), parameters('deployWindowsVirtualMachine')), createArray(reference(subscriptionResourceId(parameters('hubSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-remote-access-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value), createArray()))]"
+            "value": "[union(createArray(reference(subscriptionResourceId(parameters('hubSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-diag-storage-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value), if(variables('effectiveDeployActiveDirectoryDomainServices'), createArray(reference(subscriptionResourceId(parameters('identitySubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-adds-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value), createArray()), if(or(variables('effectiveDeployLinuxVirtualMachine'), variables('effectiveDeployWindowsVirtualMachine')), createArray(reference(subscriptionResourceId(parameters('hubSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-remote-access-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value), createArray()))]"
           },
           "keyVaultDiagnosticLogs": {
             "value": "[parameters('keyVaultDiagnosticsLogs')]"
@@ -10079,7 +10230,7 @@
             "value": "[parameters('networkInterfaceDiagnosticsMetrics')]"
           },
           "networkInterfaceResourceIds": {
-            "value": "[union(if(and(parameters('deployActiveDirectoryDomainServices'), parameters('deployIdentity')), reference(subscriptionResourceId(parameters('identitySubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-adds-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkInterfaceResourceIds.value, createArray()), reference(subscriptionResourceId(parameters('operationsSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-monitoring-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkInterfaceResourceIds.value, if(or(parameters('deployLinuxVirtualMachine'), parameters('deployWindowsVirtualMachine')), reference(subscriptionResourceId(parameters('hubSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-remote-access-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkInterfaceResourceIds.value, createArray()), flatten(reference(subscriptionResourceId(parameters('hubSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-diag-storage-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkInterfaceResourceIds.value))]"
+            "value": "[union(if(variables('effectiveDeployActiveDirectoryDomainServices'), reference(subscriptionResourceId(parameters('identitySubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-adds-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkInterfaceResourceIds.value, createArray()), reference(subscriptionResourceId(parameters('operationsSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-monitoring-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkInterfaceResourceIds.value, if(or(variables('effectiveDeployLinuxVirtualMachine'), variables('effectiveDeployWindowsVirtualMachine')), reference(subscriptionResourceId(parameters('hubSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-remote-access-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkInterfaceResourceIds.value, createArray()), flatten(reference(subscriptionResourceId(parameters('hubSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-diag-storage-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.networkInterfaceResourceIds.value))]"
           },
           "networkWatcherFlowLogsRetentionDays": {
             "value": "[parameters('networkWatcherFlowLogsRetentionDays')]"
@@ -10131,7 +10282,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "17694955990504683037"
+              "templateHash": "9968945981599310254"
             }
           },
           "parameters": {
@@ -10238,6 +10389,14 @@
           "variables": {
             "copy": [
               {
+                "name": "storageAccountEntries",
+                "count": "[length(parameters('tiers'))]",
+                "input": {
+                  "name": "[parameters('tiers')[copyIndex('storageAccountEntries')].name]",
+                  "resourceId": "[parameters('storageAccountResourceIds')[copyIndex('storageAccountEntries')]]"
+                }
+              },
+              {
                 "name": "networkSecurityGroups_Tiers",
                 "count": "[length(parameters('tiers'))]",
                 "input": {
@@ -10259,8 +10418,9 @@
             ],
             "dedupedSubscriptionIds": "[union(variables('subscriptionIds'), createArray())]",
             "hub": "[filter(parameters('tiers'), lambda('tier', equals(lambdaVariables('tier').name, 'hub')))[0]]",
+            "storageAccountsByTier": "[toObject(variables('storageAccountEntries'), lambda('tier', lambdaVariables('tier').name), lambda('tier', lambdaVariables('tier').resourceId))]",
             "networkSecurityGroups": "[union(variables('networkSecurityGroups_Tiers'), variables('networkSecurityGroup_Bastion'))]",
-            "networkSecurityGroup_Bastion": "[if(parameters('deployBastion'), createArray(createObject('diagnosticLogs', variables('hub').nsgDiagLogs, 'diagnosticSettingName', replace(variables('hub').namingConvention.bastionHostNetworkSecurityGroupDiagnosticSetting, format('{0}{1}', parameters('delimiter'), parameters('tokens').purpose), ''), 'flowLogsName', replace(variables('hub').namingConvention.networkWatcherFlowLogsNetworkSecurityGroup, parameters('tokens').purpose, 'bastion'), 'name', replace(variables('hub').namingConvention.bastionHostNetworkSecurityGroup, format('{0}{1}', parameters('delimiter'), parameters('tokens').purpose), ''), 'resourceGroupName', variables('hub').resourceGroupName, 'storageAccountResourceId', parameters('storageAccountResourceIds')[0], 'subscriptionId', variables('hub').subscriptionId, 'tierName', format('hub{0}bas', parameters('delimiter')))), createArray())]",
+            "networkSecurityGroup_Bastion": "[if(parameters('deployBastion'), createArray(createObject('diagnosticLogs', variables('hub').nsgDiagLogs, 'diagnosticSettingName', replace(variables('hub').namingConvention.bastionHostNetworkSecurityGroupDiagnosticSetting, format('{0}{1}', parameters('delimiter'), parameters('tokens').purpose), ''), 'flowLogsName', replace(variables('hub').namingConvention.networkWatcherFlowLogsNetworkSecurityGroup, parameters('tokens').purpose, 'bastion'), 'name', replace(variables('hub').namingConvention.bastionHostNetworkSecurityGroup, format('{0}{1}', parameters('delimiter'), parameters('tokens').purpose), ''), 'resourceGroupName', variables('hub').resourceGroupName, 'storageAccountResourceId', variables('storageAccountsByTier').hub, 'subscriptionId', variables('hub').subscriptionId, 'tierName', format('hub{0}bas', parameters('delimiter')))), createArray())]",
             "operations": "[filter(parameters('tiers'), lambda('tier', equals(lambdaVariables('tier').name, 'operations')))[0]]",
             "publicIPAddresses": "[union(createArray(createObject('name', replace(variables('hub').namingConvention.azureFirewallPublicIPAddress, parameters('tokens').purpose, 'client'), 'diagName', replace(variables('hub').namingConvention.azureFirewallPublicIPAddressDiagnosticSetting, parameters('tokens').purpose, 'client')), createObject('name', replace(variables('hub').namingConvention.azureFirewallPublicIPAddress, parameters('tokens').purpose, 'management'), 'diagName', replace(variables('hub').namingConvention.azureFirewallPublicIPAddressDiagnosticSetting, parameters('tokens').purpose, 'management'))), if(parameters('deployBastion'), createArray(createObject('name', replace(variables('hub').namingConvention.bastionHostPublicIPAddress, format('{0}{1}', parameters('delimiter'), parameters('tokens').purpose), ''), 'diagName', replace(variables('hub').namingConvention.bastionHostPublicIPAddressDiagnosticSetting, format('{0}{1}', parameters('delimiter'), parameters('tokens').purpose), ''))), createArray()))]"
           },
@@ -10360,7 +10520,7 @@
                 "mode": "Incremental",
                 "parameters": {
                   "diagnosticStorageAccountName": {
-                    "value": "[split(parameters('storageAccountResourceIds')[1], '/')[8]]"
+                    "value": "[split(variables('storageAccountsByTier').operations, '/')[8]]"
                   },
                   "logAnalyticsWorkspaceDiagnosticSettingName": {
                     "value": "[replace(variables('operations').namingConvention.logAnalyticsWorkspaceDiagnosticSetting, format('{0}{1}', parameters('delimiter'), parameters('tokens').purpose), '')]"
@@ -10463,7 +10623,7 @@
                   "logAnalyticsWorkspaceResourceId": {
                     "value": "[parameters('logAnalyticsWorkspaceResourceId')]"
                   },
-                  "logStorageAccountResourceId": "[if(equals(parameters('tiers')[copyIndex()].name, 'hub'), createObject('value', parameters('storageAccountResourceIds')[1]), createObject('value', parameters('storageAccountResourceIds')[0]))]",
+                  "logStorageAccountResourceId": "[if(equals(parameters('tiers')[copyIndex()].name, 'hub'), createObject('value', variables('storageAccountsByTier').operations), createObject('value', variables('storageAccountsByTier').hub))]",
                   "queueDiagnosticSettingName": {
                     "value": "[replace(parameters('tiers')[copyIndex()].namingConvention.storageAccountQueueDiagnosticSetting, format('{0}{1}', parameters('delimiter'), parameters('tokens').purpose), '')]"
                   },
@@ -10866,7 +11026,7 @@
                 "mode": "Incremental",
                 "parameters": {
                   "hubStorageAccountResourceId": {
-                    "value": "[parameters('storageAccountResourceIds')[0]]"
+                    "value": "[variables('storageAccountsByTier').hub]"
                   },
                   "logAnalyticsWorkspaceResourceId": {
                     "value": "[parameters('logAnalyticsWorkspaceResourceId')]"
@@ -10956,7 +11116,7 @@
                     "value": "[parameters('firewallDiagnosticsLogs')]"
                   },
                   "logStorageAccountResourceId": {
-                    "value": "[parameters('storageAccountResourceIds')[0]]"
+                    "value": "[variables('storageAccountsByTier').hub]"
                   },
                   "metrics": {
                     "value": "[parameters('firewallDiagnosticsMetrics')]"
@@ -11038,7 +11198,7 @@
                     "value": "[parameters('keyVaults')[copyIndex()].name]"
                   },
                   "keyVaultStorageAccountId": {
-                    "value": "[filter(parameters('storageAccountResourceIds'), lambda('id', contains(lambdaVariables('id'), parameters('keyVaults')[copyIndex()].tierName)))[0]]"
+                    "value": "[variables('storageAccountsByTier')[parameters('keyVaults')[copyIndex()].tierName]]"
                   },
                   "logAnalyticsWorkspaceResourceId": {
                     "value": "[parameters('logAnalyticsWorkspaceResourceId')]"
@@ -11126,7 +11286,7 @@
                     "value": "[replace(variables('hub').namingConvention.bastionHost, format('{0}{1}', parameters('delimiter'), parameters('tokens').purpose), '')]"
                   },
                   "storageAccountResourceId": {
-                    "value": "[parameters('storageAccountResourceIds')[0]]"
+                    "value": "[variables('storageAccountsByTier').hub]"
                   }
                 },
                 "template": {
@@ -11224,7 +11384,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.39.26.7824",
-                      "templateHash": "5632968287588011938"
+                      "templateHash": "729961755821489795"
                     }
                   },
                   "parameters": {
@@ -11253,22 +11413,81 @@
                       "type": "object"
                     }
                   },
-                  "variables": {
-                    "networkInterfaceDiagnosticSettingName": "[replace(parameters('tiers')[variables('tierIndex')].namingConvention.virtualMachineNetworkInterfaceDiagnosticSetting, format('{0}{1}', parameters('delimiter'), parameters('tokens').purpose), '')]",
-                    "storageAccountResourceId": "[parameters('storageAccountResourceIds')[variables('tierIndex')]]",
-                    "tierIndex": "[if(contains(parameters('networkInterfaceResourceId'), '-ops-'), 1, if(contains(parameters('networkInterfaceResourceId'), '-svcs-'), 2, if(contains(parameters('networkInterfaceResourceId'), '-id-'), 3, 0)))]"
-                  },
                   "resources": [
                     {
-                      "type": "Microsoft.Insights/diagnosticSettings",
-                      "apiVersion": "2021-05-01-preview",
-                      "scope": "[format('Microsoft.Network/networkInterfaces/{0}', split(parameters('networkInterfaceResourceId'), '/')[8])]",
-                      "name": "[variables('networkInterfaceDiagnosticSettingName')]",
+                      "type": "Microsoft.Resources/deployments",
+                      "apiVersion": "2025-04-01",
+                      "name": "[format('deploy-nic-diag-{0}', uniqueString(parameters('networkInterfaceResourceId')))]",
                       "properties": {
-                        "logs": "[parameters('logs')]",
-                        "metrics": "[parameters('metrics')]",
-                        "storageAccountId": "[variables('storageAccountResourceId')]",
-                        "workspaceId": "[parameters('logAnalyticsWorkspaceResourceId')]"
+                        "expressionEvaluationOptions": {
+                          "scope": "inner"
+                        },
+                        "mode": "Incremental",
+                        "parameters": {
+                          "networkInterfaceName": {
+                            "value": "[split(parameters('networkInterfaceResourceId'), '/')[8]]"
+                          },
+                          "diagnosticSettingName": {
+                            "value": "[replace(parameters('tiers')[indexOf(map(parameters('tiers'), lambda('tier', toLower(lambdaVariables('tier').subnetResourceId))), toLower(reference(resourceId('Microsoft.Network/networkInterfaces', split(parameters('networkInterfaceResourceId'), '/')[8]), '2021-02-01').ipConfigurations[0].properties.subnet.id))].namingConvention.virtualMachineNetworkInterfaceDiagnosticSetting, format('{0}{1}', parameters('delimiter'), parameters('tokens').purpose), '')]"
+                          },
+                          "logs": {
+                            "value": "[parameters('logs')]"
+                          },
+                          "metrics": {
+                            "value": "[parameters('metrics')]"
+                          },
+                          "storageAccountId": {
+                            "value": "[parameters('storageAccountResourceIds')[indexOf(map(parameters('tiers'), lambda('tier', toLower(lambdaVariables('tier').subnetResourceId))), toLower(reference(resourceId('Microsoft.Network/networkInterfaces', split(parameters('networkInterfaceResourceId'), '/')[8]), '2021-02-01').ipConfigurations[0].properties.subnet.id))]]"
+                          },
+                          "workspaceId": {
+                            "value": "[parameters('logAnalyticsWorkspaceResourceId')]"
+                          }
+                        },
+                        "template": {
+                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                          "contentVersion": "1.0.0.0",
+                          "metadata": {
+                            "_generator": {
+                              "name": "bicep",
+                              "version": "0.39.26.7824",
+                              "templateHash": "3930167848033785046"
+                            }
+                          },
+                          "parameters": {
+                            "networkInterfaceName": {
+                              "type": "string"
+                            },
+                            "diagnosticSettingName": {
+                              "type": "string"
+                            },
+                            "logs": {
+                              "type": "array"
+                            },
+                            "metrics": {
+                              "type": "array"
+                            },
+                            "storageAccountId": {
+                              "type": "string"
+                            },
+                            "workspaceId": {
+                              "type": "string"
+                            }
+                          },
+                          "resources": [
+                            {
+                              "type": "Microsoft.Insights/diagnosticSettings",
+                              "apiVersion": "2021-05-01-preview",
+                              "scope": "[format('Microsoft.Network/networkInterfaces/{0}', parameters('networkInterfaceName'))]",
+                              "name": "[parameters('diagnosticSettingName')]",
+                              "properties": {
+                                "logs": "[parameters('logs')]",
+                                "metrics": "[parameters('metrics')]",
+                                "storageAccountId": "[parameters('storageAccountId')]",
+                                "workspaceId": "[parameters('workspaceId')]"
+                              }
+                            }
+                          ]
+                        }
                       }
                     }
                   ]
@@ -12124,7 +12343,7 @@
     },
     "domainControllerResourceIds": {
       "type": "array",
-      "value": "[if(and(parameters('deployActiveDirectoryDomainServices'), parameters('deployIdentity')), reference(subscriptionResourceId(parameters('identitySubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-adds-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.virtualMachineResourceIds.value, createArray())]"
+      "value": "[if(variables('effectiveDeployActiveDirectoryDomainServices'), reference(subscriptionResourceId(parameters('identitySubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-adds-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.virtualMachineResourceIds.value, createArray())]"
     },
     "hubStorageAccountResourceId": {
       "type": "string",

@@ -21,6 +21,26 @@
               }
             },
             {
+              "name": "deploymentProfile",
+              "label": "Deployment profile",
+              "type": "Microsoft.Common.DropDown",
+              "defaultValue": "customer-il2",
+              "toolTip": "customer-il2 owns only Hub and Operations and uses SCCA/region/IL2 resource names. VDMS and Shared Services are deployed separately. legacy retains upstream topology, workload options, and naming.",
+              "constraints": {
+                "required": true,
+                "allowedValues": [
+                  {
+                    "label": "customer-il2",
+                    "value": "customer-il2"
+                  },
+                  {
+                    "label": "legacy",
+                    "value": "legacy"
+                  }
+                ]
+              }
+            },
+            {
               "name": "resourceScope",
               "type": "Microsoft.Common.ResourceScope",
               "location": {
@@ -103,6 +123,7 @@
               "name": "identitySection",
               "label": "Identity",
               "type": "Microsoft.Common.Section",
+              "visible": "[equals(steps('basics').deploymentProfile, 'legacy')]",
               "elements": [
                 {
                   "name": "identitySectionTextBlock",
@@ -173,6 +194,7 @@
               "name": "sharedServicesSection",
               "label": "Shared Services",
               "type": "Microsoft.Common.Section",
+              "visible": "[equals(steps('basics').deploymentProfile, 'legacy')]",
               "elements": [
                 {
                   "name": "sharedServicesSectionTextBlock",
@@ -206,16 +228,16 @@
               "elements": [
                 {
                   "name": "identifier",
-                  "label": "Resource Naming Identifier",
+                  "label": "Customer/deployment suffix (legacy: identifier)",
                   "type": "Microsoft.Common.TextBox",
                   "defaultValue": "",
-                  "toolTip": "Specify a value (min 1 and max 6 lowercase characters and numbers) to uniquely name resources.",
+                  "toolTip": "Use 1 to 5 lowercase letters or numbers. For customer-il2, entering mlz produces names ending in -mlz. legacy retains the identifier at the start of resource names.",
                   "constraints": {
                     "required": true,
                     "validations": [
                       {
                         "regex": "^[a-z0-9]{1,5}$",
-                        "message": "The prefix must contain alphanumeric characters, letters must be lowercase, and the length must be between 1 to 5 characters."
+                        "message": "The identifier must contain 1 to 5 lowercase letters or numbers."
                       }
                     ]
                   }
@@ -225,7 +247,7 @@
                   "label": "Environment Abbreviation",
                   "type": "Microsoft.Common.DropDown",
                   "defaultValue": "dev",
-                  "toolTip": "Select an abbreviation for the target environment. This value will be used as a component in the naming convention.",
+                  "toolTip": "Used for tags and service settings. customer-il2 infrastructure names omit this value; legacy names and temporary CMK VM naming retain it.",
                   "multiselect": false,
                   "selectAll": false,
                   "filter": true,
@@ -282,7 +304,7 @@
               "name": "infoBoxVirtualNetworkOverlap",
               "type": "Microsoft.Common.InfoBox",
               "options": {
-                "text": "Make sure that the address spaces do not overlap with each other for the Hub, Identity, Operations, or Shared Services networks.",
+                "text": "Make sure that address spaces do not overlap between MLZ networks or customer-managed networks connected later. customer-il2 deploys only Hub and Operations; legacy can also deploy Identity and Shared Services.",
                 "style": "Info"
               }
             },
@@ -473,7 +495,7 @@
               "name": "identityVirtualNetwork",
               "label": "Identity Virtual Network",
               "type": "Microsoft.Common.Section",
-              "visible": "[steps('basics').identitySection.deployIdentity]",
+              "visible": "[and(equals(steps('basics').deploymentProfile, 'legacy'), steps('basics').identitySection.deployIdentity)]",
               "elements": [
                 {
                   "name": "virtualNetworkAddressCidrRange",
@@ -584,6 +606,7 @@
               "name": "sharedServicesVirtualNetwork",
               "label": "Shared Services Virtual Network",
               "type": "Microsoft.Common.Section",
+              "visible": "[equals(steps('basics').deploymentProfile, 'legacy')]",
               "elements": [
                 {
                   "name": "virtualNetworkAddressCidrRange",
@@ -1007,9 +1030,18 @@
           "label": "Identity",
           "elements": [
             {
+              "name": "customerOwnership",
+              "type": "Microsoft.Common.InfoBox",
+              "visible": "[equals(steps('basics').deploymentProfile, 'customer-il2')]",
+              "options": {
+                "style": "Info",
+                "text": "The customer-il2 profile deploys only Hub and Operations. Customer-managed VDMS/domain controllers and Shared Services, including their networks, are deployed separately. MLZ jump-box workloads are disabled; Bastion and encryption-support infrastructure remain available."
+              }
+            },
+            {
               "name": "identityNotSelectedWarning",
               "type": "Microsoft.Common.InfoBox",
-              "visible": "[not(steps('basics').identitySection.deployIdentity)]",
+              "visible": "[and(equals(steps('basics').deploymentProfile, 'legacy'), not(steps('basics').identitySection.deployIdentity))]",
               "options": {
                 "style": "Warning",
                 "text": "The 'Deploy identity resources' checkbox was not selected on the Basics step. If you want to deploy Active Directory Domain Services, go back to the Basics step and check the check box."
@@ -1019,7 +1051,7 @@
               "name": "addsSection",
               "label": "Active Directory Domain Services",
               "type": "Microsoft.Common.Section",
-              "visible": "[steps('basics').identitySection.deployIdentity]",
+              "visible": "[and(equals(steps('basics').deploymentProfile, 'legacy'), steps('basics').identitySection.deployIdentity)]",
               "elements": [
                 {
                   "name": "deployADDS",
@@ -1036,7 +1068,7 @@
               "name": "forestSection",
               "label": "Forest settings",
               "type": "Microsoft.Common.Section",
-              "visible": "[and(steps('basics').identitySection.deployIdentity, steps('identity').addsSection.deployADDS)]",
+              "visible": "[and(equals(steps('basics').deploymentProfile, 'legacy'), steps('basics').identitySection.deployIdentity, steps('identity').addsSection.deployADDS)]",
               "elements": [
                 {
                   "name": "domainName",
@@ -1071,7 +1103,7 @@
               "name": "vmSection",
               "label": "Virtual machine settings",
               "type": "Microsoft.Common.Section",
-              "visible": "[and(steps('basics').identitySection.deployIdentity, steps('identity').addsSection.deployADDS)]",
+              "visible": "[and(equals(steps('basics').deploymentProfile, 'legacy'), steps('basics').identitySection.deployIdentity, steps('identity').addsSection.deployADDS)]",
               "elements": [
                 {
                   "name": "vmImageSku",
@@ -1320,6 +1352,7 @@
               "name": "windowsVmSection",
               "label": "Windows Virtual Machine",
               "type": "Microsoft.Common.Section",
+              "visible": "[equals(steps('basics').deploymentProfile, 'legacy')]",
               "elements": [
                 {
                   "name": "deployWindowsVirtualMachine",
@@ -1431,6 +1464,7 @@
               "name": "linuxVmSection",
               "label": "Linux Virtual Machine",
               "type": "Microsoft.Common.Section",
+              "visible": "[equals(steps('basics').deploymentProfile, 'legacy')]",
               "elements": [
                 {
                   "name": "deployLinuxVirtualMachine",
@@ -1565,7 +1599,7 @@
                 {
                   "name": "policyWarning",
                   "type": "Microsoft.Common.InfoBox",
-                  "visible": "[steps('remoteAccess').linuxVmSection.deployLinuxVirtualMachine]",
+                  "visible": "[and(equals(steps('basics').deploymentProfile, 'legacy'), steps('remoteAccess').linuxVmSection.deployLinuxVirtualMachine)]",
                   "options": {
                     "style": "Warning",
                     "text": "Please validate the desired Linux distribution is available, as there can be differences between clouds."
@@ -1619,6 +1653,7 @@
       "location": "[steps('basics').resourceScope.location.name]",
       "subscriptionId": "[steps('basics').resourceScope.subscription.id]",
       "parameters": {
+        "deploymentProfile": "[steps('basics').deploymentProfile]",
         "addsDomainName": "[steps('identity').forestSection.domainName]",
         "addsSafeModeAdminPassword": "[steps('identity').forestSection.safeModeAdminPassword]",
         "addsAdministratorPassword": "[steps('identity').vmSection.vmAdminPassword.password]",
@@ -1628,16 +1663,16 @@
         "azureGatewaySubnetAddressPrefix": "[steps('remoteAccess').azureGatewaySubnetSection.azureGatewaySubnetAddressCidrRange]",
         "bastionHostSubnetAddressPrefix": "[steps('remoteAccess').azureBastionSection.bastionSubnetAddressCidrRange]",
         "defenderSkuTier": "[if(steps('compliance').defenderSection.deployDefender, 'Standard', 'Free')]",
-        "deployActiveDirectoryDomainServices": "[steps('identity').addsSection.deployADDS]",
+        "deployActiveDirectoryDomainServices": "[and(equals(steps('basics').deploymentProfile, 'legacy'), steps('basics').identitySection.deployIdentity, steps('identity').addsSection.deployADDS)]",
         "deployAzureGatewaySubnet": "[steps('remoteAccess').azureGatewaySubnetSection.deployAzureGatewaySubnet]",
         "deployBastion": "[steps('remoteAccess').azureBastionSection.deployBastion]",
         "deployDefenderPlans": "[steps('compliance').defenderSection.deployDefenderPlans]",
-        "deployIdentity": "[steps('basics').identitySection.deployIdentity]",
-        "deployLinuxVirtualMachine": "[steps('remoteAccess').linuxVmSection.deployLinuxVirtualMachine]",
+        "deployIdentity": "[and(equals(steps('basics').deploymentProfile, 'legacy'), steps('basics').identitySection.deployIdentity)]",
+        "deployLinuxVirtualMachine": "[and(equals(steps('basics').deploymentProfile, 'legacy'), steps('remoteAccess').linuxVmSection.deployLinuxVirtualMachine)]",
         "deployNetworkWatcherTrafficAnalytics": "[steps('networking').flowLogsSection.deployTrafficAnalytics]",
         "deployPolicy": "[steps('compliance').policySection.deployPolicy]",
         "deploySentinel": "[steps('compliance').sentinelSection.deploySentinel]",
-        "deployWindowsVirtualMachine": "[steps('remoteAccess').windowsVmSection.deployWindowsVirtualMachine]",
+        "deployWindowsVirtualMachine": "[and(equals(steps('basics').deploymentProfile, 'legacy'), steps('remoteAccess').windowsVmSection.deployWindowsVirtualMachine)]",
         "emailSecurityContact": "[steps('compliance').defenderSection.emailSecurityContact]",
         "environmentAbbreviation": "[steps('basics').namingSection.environmentAbbreviation]",
         "firewallClientSubnetAddressPrefix": "[steps('networking').hubVirtualNetwork.firewallClientSubnetAddressCidrRange]",
@@ -1649,9 +1684,9 @@
         "hubVirtualNetworkAddressPrefix": "[steps('networking').hubVirtualNetwork.virtualNetworkAddressCidrRange]",
         "hybridUseBenefit": "[steps('remoteAccess').windowsVmSection.hybridUseBenefit]",
         "identitySubnetAddressPrefix": "[steps('networking').identityVirtualNetwork.subnetAddressCidrRange]",
-        "identitySubscriptionId": "[if(steps('basics').identitySection.deployIdentity, replace(steps('basics').identitySection.identitySubscriptionId, '/subscriptions/', ''), replace(steps('basics').hubSection.hubSubscriptionId, '/subscriptions/', ''))]",
+        "identitySubscriptionId": "[if(and(equals(steps('basics').deploymentProfile, 'legacy'), steps('basics').identitySection.deployIdentity), replace(steps('basics').identitySection.identitySubscriptionId, '/subscriptions/', ''), replace(steps('basics').hubSection.hubSubscriptionId, '/subscriptions/', ''))]",
         "identityVirtualNetworkAddressPrefix": "[steps('networking').identityVirtualNetwork.virtualNetworkAddressCidrRange]",
-        "linuxVmAdminPasswordOrKey": "[if(equals(steps('remoteAccess').linuxVmSection.linuxVmAdminPasswordOrKey.authenticationType, 'password'), steps('remoteAccess').linuxVmSection.linuxVmAdminPasswordOrKey.password, steps('remoteAccess').linuxVmSection.linuxVmAdminPasswordOrKey.sshPublicKey)]",
+        "linuxVmAdminPasswordOrKey": "[if(and(equals(steps('basics').deploymentProfile, 'legacy'), steps('remoteAccess').linuxVmSection.deployLinuxVirtualMachine), if(equals(steps('remoteAccess').linuxVmSection.linuxVmAdminPasswordOrKey.authenticationType, 'password'), steps('remoteAccess').linuxVmSection.linuxVmAdminPasswordOrKey.password, steps('remoteAccess').linuxVmSection.linuxVmAdminPasswordOrKey.sshPublicKey), guid())]",
         "linuxVmAdminUsername": "[steps('remoteAccess').linuxVmSection.linuxVmAdminUsername]",
         "linuxVmAuthenticationType": "password",
         "linuxVmImageOffer": "[steps('remoteAccess').linuxVmSection.linuxVmImageOffer]",
@@ -1666,10 +1701,10 @@
         "policy": "[steps('compliance').policySection.policy]",
         "identifier": "[steps('basics').namingSection.identifier]",
         "sharedServicesSubnetAddressPrefix": "[steps('networking').sharedServicesVirtualNetwork.subnetAddressCidrRange]",
-        "sharedServicesSubscriptionId": "[replace(steps('basics').sharedServicesSection.sharedServicesSubscriptionId, '/subscriptions/', '')]",
+        "sharedServicesSubscriptionId": "[if(equals(steps('basics').deploymentProfile, 'legacy'), replace(steps('basics').sharedServicesSection.sharedServicesSubscriptionId, '/subscriptions/', ''), replace(steps('basics').hubSection.hubSubscriptionId, '/subscriptions/', ''))]",
         "sharedServicesVirtualNetworkAddressPrefix": "[steps('networking').sharedServicesVirtualNetwork.virtualNetworkAddressCidrRange]",
         "tags": "[steps('tags').tags]",
-        "windowsVmAdminPassword": "[steps('remoteAccess').windowsVmSection.windowsVmAdminPassword.password]",
+        "windowsVmAdminPassword": "[if(and(equals(steps('basics').deploymentProfile, 'legacy'), steps('remoteAccess').windowsVmSection.deployWindowsVirtualMachine), steps('remoteAccess').windowsVmSection.windowsVmAdminPassword.password, guid())]",
         "windowsVmAdminUsername": "[steps('remoteAccess').windowsVmSection.windowsVmAdminUsername]",
         "windowsVmSize": "[steps('remoteAccess').windowsVmSection.windowsVmSize]",
         "windowsVmSku": "[steps('remoteAccess').windowsVmSection.windowsVmSku]"

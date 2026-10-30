@@ -10,6 +10,8 @@ targetScope = 'subscription'
   '-' // hyphen
 ])
 param delimiter string
+@allowed(['customer-il2', 'legacy'])
+param deploymentProfile string = 'legacy'
 param environmentAbbreviation string
 param identifier string
 param locationAbbreviation string
@@ -27,7 +29,7 @@ var tokens = {
 
   NAMING CONVENTION VARIABLES
 
-  The two variables below define the naming convention for all the resources deployed in MLZ and the MLZ add-ons. The concepts below
+  The two variables below define legacy naming for MLZ and its add-ons. Customer core overrides are defined separately below. The concepts below
   adhere to the best practices in the Cloud Adoption Framework. Resource names are defined using a different naming 
   components that are separated by a delimiter. The components are:
 
@@ -56,7 +58,7 @@ var namingConvention_Service = '${toLower(identifier)}${delimiter}${environmentA
 
 */
 
-var names = {
+var legacyNames = {
   actionGroup: replace(namingConvention, tokens.resource, resourceAbbreviations.actionGroups)
   applicationGroup: replace(namingConvention, tokens.resource, resourceAbbreviations.applicationGroups)
   applicationInsights: replace(namingConvention, tokens.resource, resourceAbbreviations.applicationInsights)
@@ -157,6 +159,64 @@ var names = {
   workspacePrivateEndpoint: replace(replace(namingConvention_Service, tokens.resource, resourceAbbreviations.privateEndpoints), tokens.service, resourceAbbreviations.workspaces)
 }
 
+var isCustomerProfile = deploymentProfile == 'customer-il2' && contains(['hub', 'operations'], networkName)
+var customerContext = 'scca${delimiter}${locationAbbreviation}${delimiter}il2'
+var customerSuffix = '${delimiter}${toLower(identifier)}'
+var customerSingleton = '${tokens.resource}${delimiter}${customerContext}${delimiter}${tokens.purpose}${customerSuffix}'
+var customerSingletonService = '${tokens.resource}${delimiter}${customerContext}${delimiter}${tokens.service}${delimiter}${tokens.purpose}${customerSuffix}'
+var customerTier = '${tokens.resource}${delimiter}${customerContext}${delimiter}${networkName}${delimiter}${tokens.purpose}${customerSuffix}'
+var customerTierService = '${tokens.resource}${delimiter}${customerContext}${delimiter}${networkName}${delimiter}${tokens.service}${delimiter}${tokens.purpose}${customerSuffix}'
+
+// Only core infrastructure names change; VM, disk, and other workload templates remain legacy.
+var customerNames = {
+  azureFirewall: replace(customerSingleton, tokens.resource, resourceAbbreviations.azureFirewalls)
+  azureFirewallPolicy: replace(customerSingleton, tokens.resource, resourceAbbreviations.firewallPolicies)
+  azureFirewallPublicIPAddress: replace(replace(customerSingletonService, tokens.resource, resourceAbbreviations.publicIPAddresses), tokens.service, resourceAbbreviations.azureFirewalls)
+  azureFirewallPublicIPAddressDiagnosticSetting: replace(replace(customerSingletonService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, '${resourceAbbreviations.publicIPAddresses}${delimiter}${resourceAbbreviations.azureFirewalls}')
+  azureFirewallDiagnosticSetting: replace(replace(customerSingletonService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, resourceAbbreviations.azureFirewalls)
+  bastionHost: replace(customerSingleton, tokens.resource, resourceAbbreviations.bastionHosts)
+  bastionHostDiagnosticSetting: replace(replace(customerSingletonService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, resourceAbbreviations.bastionHosts)
+  bastionHostNetworkSecurityGroup: replace(replace(customerSingletonService, tokens.resource, resourceAbbreviations.networkSecurityGroups), tokens.service, resourceAbbreviations.bastionHosts)
+  bastionHostNetworkSecurityGroupDiagnosticSetting: replace(replace(customerSingletonService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, '${resourceAbbreviations.networkSecurityGroups}${delimiter}${resourceAbbreviations.bastionHosts}')
+  bastionHostPublicIPAddress: replace(replace(customerSingletonService, tokens.resource, resourceAbbreviations.publicIPAddresses), tokens.service, resourceAbbreviations.bastionHosts)
+  bastionHostPublicIPAddressDiagnosticSetting: replace(replace(customerSingletonService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, '${resourceAbbreviations.publicIPAddresses}${delimiter}${resourceAbbreviations.bastionHosts}')
+  keyVault: replace(customerTier, tokens.resource, resourceAbbreviations.keyVaults)
+  keyVaultDiagnosticSetting: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, resourceAbbreviations.keyVaults)
+  keyVaultNetworkInterface: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.networkInterfaces), tokens.service, resourceAbbreviations.keyVaults)
+  keyVaultPrivateEndpoint: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.privateEndpoints), tokens.service, resourceAbbreviations.keyVaults)
+  logAnalyticsWorkspace: replace(customerTier, tokens.resource, resourceAbbreviations.logAnalyticsWorkspaces)
+  logAnalyticsWorkspaceDiagnosticSetting: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, resourceAbbreviations.logAnalyticsWorkspaces)
+  networkSecurityGroup: replace(customerTier, tokens.resource, resourceAbbreviations.networkSecurityGroups)
+  networkSecurityGroupDiagnosticSetting: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, resourceAbbreviations.networkSecurityGroups)
+  networkWatcherFlowLogsNetworkSecurityGroup: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.networkWatchersFlowLogs), tokens.service, resourceAbbreviations.networkSecurityGroups)
+  networkWatcherFlowLogsVirtualNetwork: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.networkWatchersFlowLogs), tokens.service, resourceAbbreviations.virtualNetworks)
+  privateLinkScope: replace(customerTier, tokens.resource, resourceAbbreviations.privateLinkScopes)
+  privateLinkScopeNetworkInterface: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.networkInterfaces), tokens.service, resourceAbbreviations.privateLinkScopes)
+  privateLinkScopePrivateEndpoint: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.privateEndpoints), tokens.service, resourceAbbreviations.privateLinkScopes)
+  // The core caller supplies "network" as a purpose; customer resource groups deliberately have no role token.
+  resourceGroup: replace(replace(customerTier, tokens.resource, resourceAbbreviations.resourceGroups), '${delimiter}${tokens.purpose}', '')
+  routeTable: replace(customerTier, tokens.resource, resourceAbbreviations.routeTables)
+  storageAccount: replace(customerTier, tokens.resource, resourceAbbreviations.storageAccounts)
+  storageAccountBlobDiagnosticSetting: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, '${resourceAbbreviations.storageAccounts}${delimiter}blob')
+  storageAccountBlobNetworkInterface: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.networkInterfaces), tokens.service, '${resourceAbbreviations.storageAccounts}${delimiter}blob')
+  storageAccountBlobPrivateEndpoint: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.privateEndpoints), tokens.service, '${resourceAbbreviations.storageAccounts}${delimiter}blob')
+  storageAccountDiagnosticSetting: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, resourceAbbreviations.storageAccounts)
+  storageAccountFileDiagnosticSetting: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, '${resourceAbbreviations.storageAccounts}${delimiter}file')
+  storageAccountFileNetworkInterface: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.networkInterfaces), tokens.service, '${resourceAbbreviations.storageAccounts}${delimiter}file')
+  storageAccountFilePrivateEndpoint: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.privateEndpoints), tokens.service, '${resourceAbbreviations.storageAccounts}${delimiter}file')
+  storageAccountQueueDiagnosticSetting: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, '${resourceAbbreviations.storageAccounts}${delimiter}queue')
+  storageAccountQueueNetworkInterface: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.networkInterfaces), tokens.service, '${resourceAbbreviations.storageAccounts}${delimiter}queue')
+  storageAccountQueuePrivateEndpoint: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.privateEndpoints), tokens.service, '${resourceAbbreviations.storageAccounts}${delimiter}queue')
+  storageAccountTableDiagnosticSetting: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, '${resourceAbbreviations.storageAccounts}${delimiter}table')
+  storageAccountTableNetworkInterface: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.networkInterfaces), tokens.service, '${resourceAbbreviations.storageAccounts}${delimiter}table')
+  storageAccountTablePrivateEndpoint: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.privateEndpoints), tokens.service, '${resourceAbbreviations.storageAccounts}${delimiter}table')
+  subnet: replace(customerTier, tokens.resource, resourceAbbreviations.subnets)
+  userAssignedIdentity: replace(customerTier, tokens.resource, resourceAbbreviations.userAssignedIdentities)
+  virtualMachineNetworkInterfaceDiagnosticSetting: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, '${resourceAbbreviations.networkInterfaces}${delimiter}${resourceAbbreviations.virtualMachines}')
+  virtualNetwork: replace(customerTier, tokens.resource, resourceAbbreviations.virtualNetworks)
+  virtualNetworkDiagnosticSetting: replace(replace(customerTierService, tokens.resource, resourceAbbreviations.diagnosticSettings), tokens.service, resourceAbbreviations.virtualNetworks)
+}
+
 output delimiter string = delimiter
-output names object = names
+output names object = isCustomerProfile ? union(legacyNames, customerNames) : legacyNames
 output tokens object = tokens
