@@ -304,15 +304,15 @@ from [locations.json](../../src/data/locations.json), and the required `identifi
 parameter is the final customer/deployment suffix. Use `identifier=mlz` and
 `location=usgovvirginia` for these representative names:
 
-| Resource | Customer name |
-| --- | --- |
-| Firewall / policy | `afw-scca-va-il2-mlz` / `afwp-scca-va-il2-mlz` |
-| Firewall public IPs | `pip-scca-va-il2-afw-client-mlz` / `pip-scca-va-il2-afw-management-mlz` |
-| Tier resource groups | `rg-scca-va-il2-hub-mlz` / `rg-scca-va-il2-operations-mlz` |
-| Tier networks | `vnet-scca-va-il2-hub-mlz` / `vnet-scca-va-il2-operations-mlz` |
-| Operations workspace / scope | `log-scca-va-il2-operations-mlz` / `pls-scca-va-il2-operations-mlz` |
-| Monitor endpoint / NIC | `pe-scca-va-il2-operations-pls-mlz` / `nic-scca-va-il2-operations-pls-mlz` |
-| VNet diagnostics | `diag-scca-va-il2-hub-vnet-mlz` |
+Resource | Customer name
+--- | ---
+Firewall / policy | `afw-scca-va-il2-mlz` / `afwp-scca-va-il2-mlz`
+Firewall public IPs | `pip-scca-va-il2-afw-client-mlz` / `pip-scca-va-il2-afw-management-mlz`
+Tier resource groups | `rg-scca-va-il2-hub-mlz` / `rg-scca-va-il2-operations-mlz`
+Tier networks | `vnet-scca-va-il2-hub-mlz` / `vnet-scca-va-il2-operations-mlz`
+Operations workspace / scope | `log-scca-va-il2-operations-mlz` / `pls-scca-va-il2-operations-mlz`
+Monitor endpoint / NIC | `pe-scca-va-il2-operations-pls-mlz` / `nic-scca-va-il2-operations-pls-mlz`
+VNet diagnostics | `diag-scca-va-il2-hub-vnet-mlz`
 
 NSGs, route tables, convention-generated subnets, storage endpoints, diagnostics,
 flow logs, and encryption-support identities retain their tier/service/role
@@ -338,6 +338,8 @@ workloads are outside this naming profile.
 > Azure resource renaming is not an in-place migration. Applying customer naming to
 > an existing legacy-named deployment can create parallel resources; plan migration
 > and cleanup explicitly. An incremental deployment does not remove old names.
+
+<!-- -->
 
 > [!WARNING]
 > When changing any bicep files, be sure to compile the changes to JSON.
