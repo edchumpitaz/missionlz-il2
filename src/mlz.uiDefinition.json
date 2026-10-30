@@ -25,7 +25,7 @@
               "label": "Deployment profile",
               "type": "Microsoft.Common.DropDown",
               "defaultValue": "customer-il2",
-              "toolTip": "customer-il2 owns only Hub and Operations. VDMS and Shared Services are deployed separately. legacy enables the upstream MLZ workload options. Naming is unchanged.",
+              "toolTip": "customer-il2 owns only Hub and Operations and uses SCCA/region/IL2 resource names. VDMS and Shared Services are deployed separately. legacy retains upstream topology, workload options, and naming.",
               "constraints": {
                 "required": true,
                 "allowedValues": [
@@ -228,16 +228,16 @@
               "elements": [
                 {
                   "name": "identifier",
-                  "label": "Resource Naming Identifier",
+                  "label": "Customer/deployment suffix (legacy: identifier)",
                   "type": "Microsoft.Common.TextBox",
                   "defaultValue": "",
-                  "toolTip": "Specify a value (min 1 and max 6 lowercase characters and numbers) to uniquely name resources.",
+                  "toolTip": "Use 1 to 5 lowercase letters or numbers. For customer-il2, entering mlz produces names ending in -mlz. legacy retains the identifier at the start of resource names.",
                   "constraints": {
                     "required": true,
                     "validations": [
                       {
                         "regex": "^[a-z0-9]{1,5}$",
-                        "message": "The prefix must contain alphanumeric characters, letters must be lowercase, and the length must be between 1 to 5 characters."
+                        "message": "The identifier must contain 1 to 5 lowercase letters or numbers."
                       }
                     ]
                   }
@@ -247,7 +247,7 @@
                   "label": "Environment Abbreviation",
                   "type": "Microsoft.Common.DropDown",
                   "defaultValue": "dev",
-                  "toolTip": "Select an abbreviation for the target environment. This value will be used as a component in the naming convention.",
+                  "toolTip": "Used for tags and service settings. customer-il2 infrastructure names omit this value; legacy names and temporary CMK VM naming retain it.",
                   "multiselect": false,
                   "selectAll": false,
                   "filter": true,

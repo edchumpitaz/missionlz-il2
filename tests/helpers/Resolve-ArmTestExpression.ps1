@@ -141,6 +141,17 @@ function Invoke-ArmTestNode {
             for ($i = 0; $i -lt $values.Count; $i += 2) { $result[$values[$i]] = $values[$i + 1] }
             return $result
         }
+        union {
+            $result = @{}
+            foreach ($value in $values) {
+                if ($value -isnot [System.Collections.IDictionary]) { throw 'ARM test union supports naming objects only' }
+                foreach ($key in $value.Keys) {
+                    if ($value[$key] -is [System.Collections.IDictionary]) { throw 'ARM test union does not support nested objects' }
+                    $result[$key] = $value[$key]
+                }
+            }
+            return $result
+        }
         concat {
             $result = @()
             foreach ($value in $values) { $result += $value }
@@ -158,9 +169,23 @@ function Invoke-ArmTestNode {
             return $values[0].Count
         }
         toLower { return $values[0].ToLowerInvariant() }
+        empty { return ($null -eq $values[0] -or $values[0].Length -eq 0) }
+        first {
+            if ($values[0] -is [string]) { return $values[0].Substring(0, 1) }
+            return ,$values[0][0]
+        }
         indexOf { return [array]::IndexOf($values[0], $values[1]) }
+        range {
+            $result = @()
+            for ($i = 0; $i -lt $values[1]; $i++) { $result += $values[0] + $i }
+            return ,$result
+        }
+        sub { return $values[0] - $values[1] }
         split { return ,$values[0].Split($values[1]) }
-        replace { return $values[0].Replace($values[1], $values[2]) }
+        replace {
+            if ($values[1] -eq '') { return $values[0] }
+            return $values[0].Replace($values[1], $values[2])
+        }
         format { return [string]::Format($values[0], [object[]]$values.GetRange(1, $values.Count - 1).ToArray()) }
         newGuid { return [guid]::NewGuid().ToString() }
         default { throw "Unsupported ARM test function: $($Node.Name)" }

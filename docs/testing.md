@@ -37,20 +37,23 @@ result matches CI.
 The tests exercise the artifact scripts through **mocks** (no live Azure calls, no
 credentials, no network) and make **no edits** to the production scripts.
 
-### Deployment profile regression tests
+### Deployment profile and naming regression tests
 
 After changing core Bicep, regenerate the compiled template before running the
 profile tests (Azure CLI with the repository-pinned Bicep 0.39.26 is required):
 
 ```powershell
 az bicep build --file .\src\mlz.bicep --outfile .\src\mlz.json
-Invoke-Pester -Path .\tests\DeploymentProfile.Tests.ps1 -Output Detailed
+Invoke-Pester -Path .\tests\DeploymentProfile.Tests.ps1,.\tests\NamingConvention.Tests.ps1 -Output Detailed
 ```
 
 These tests evaluate compiled tier-selection and deployment-condition expressions
 for `customer-il2` and `legacy`, and verify downstream peering, storage, diagnostics,
 security, and portal-control contracts. NIC subnet metadata is substituted for the
-Azure GET response. The bounded ARM-expression test helper rejects unsupported
+Azure GET response. Naming tests evaluate exact completed names at the compiled
+core consumers, profile forwarding, region mapping, suffix and role placement,
+environment independence, legacy/add-on defaults, hash seeds, and workload exceptions.
+The bounded ARM-expression test helper rejects unsupported
 functions rather than assuming a result. These are offline regression tests, not
 an Azure what-if or live deployment validation.
 

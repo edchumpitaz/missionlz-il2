@@ -11,6 +11,8 @@ param deployAzureGatewaySubnet bool
 param deployBastion bool
 param deployIdentity bool
 param deploymentNameSuffix string
+@allowed(['customer-il2', 'legacy'])
+param deploymentProfile string = 'legacy'
 param dnsServers array
 param enableProxy bool
 param environmentAbbreviation string
@@ -36,6 +38,7 @@ module logic 'logic.bicep' = {
   params: {
     delimiter: '-'
     deploymentNameSuffix: deploymentNameSuffix
+    deploymentProfile: deploymentProfile
     environmentAbbreviation: environmentAbbreviation
     identifier: identifier
     location: location
@@ -64,6 +67,7 @@ module hubNetwork 'hub-network.bicep' = {
     delimiter: logic.outputs.delimiter
     deployAzureGatewaySubnet: deployAzureGatewaySubnet
     deployBastion: deployBastion
+    deploymentProfile: deploymentProfile
     deploymentNameSuffix: deploymentNameSuffix
     dnsServers: dnsServers
     enableProxy: enableProxy

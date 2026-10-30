@@ -33,7 +33,13 @@ The local portal definition defaults to the `customer-il2` deployment profile: H
 Operations only. Identity, ADDS, Shared Services, and MLZ jump-box workload controls are
 hidden and disabled for this profile. VDMS and Shared Services are customer-managed
 follow-on deployments. Select `legacy` to expose the upstream topology and workload
-options described below. Naming is unchanged in both profiles.
+options described below and preserve upstream naming. The customer profile uses
+SCCA/region/IL2 naming, with the identifier as the final customer/deployment suffix.
+For example, `mlz` in Azure Government Virginia produces `afw-scca-va-il2-mlz` and
+`rg-scca-va-il2-hub-mlz`. The identifier accepts 1 to 5 lowercase letters or numbers.
+Region remains the actual deployment location; its naming abbreviation is mapped
+automatically. Environment remains available for tags and service settings, but
+is omitted from customer infrastructure names (temporary CMK VM naming is unchanged).
 
 > [!IMPORTANT]
 > The deployment buttons above reference upstream `Azure/missionlz`, not this private
@@ -41,7 +47,7 @@ options described below. Naming is unchanged in both profiles.
 > `src/mlz.json` together with its `src/mlz.uiDefinition.json`, for example through a
 > template spec. Do not expect the upstream buttons to use this repository's defaults.
 
-The first step in the deployment UI is the Basics step. This requires basic information for your MLZ deployment: Subscription(s), Location, Resource Naming Prefix, and Environment Abbreviation.
+The first step in the deployment UI is the Basics step. This requires basic information for your MLZ deployment: Subscription(s), Location, Customer/deployment Suffix (Identifier), and Environment Abbreviation.
 
 #### Project Details
 
@@ -62,8 +68,8 @@ Operations, Shared Services, and optionally Identity subscriptions.
 
 #### Naming Components
 
-- **Resource Naming Prefix:** Specify a prefix for your MLZ resources. This prefix can help distinguish your MLZ resources and resource groups from other Azure resources. Ideally, the prefix would be an abbreviation for your organization or the department governing these resources.  The value must be between 3 to 6 alphanumeric characters.
-- **Environment Abbreviation:** Select the abbreviation for the target environment: `dev` = development, `test` = test, or `prod` = production.
+- **Customer/deployment Suffix (Identifier):** Enter 1 to 5 lowercase letters or numbers. For `customer-il2`, `mlz` makes general infrastructure names end in `-mlz`. The `legacy` profile retains the upstream identifier position.
+- **Environment Abbreviation:** Select `dev` = development, `test` = test, or `prod` = production for tags and service settings. This does not change customer infrastructure names; legacy and temporary CMK VM templates retain their existing naming behavior.
 
 ### STEP 2: Networking
 

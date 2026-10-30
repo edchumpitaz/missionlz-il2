@@ -11,6 +11,8 @@ param delimiter string
 param deployAzureGatewaySubnet bool
 param deployBastion bool
 param deploymentNameSuffix string
+@allowed(['customer-il2', 'legacy'])
+param deploymentProfile string = 'legacy'
 param dnsServers array
 param enableProxy bool
 param firewallClientPrivateIpAddress string
@@ -42,6 +44,11 @@ param tags object
 param tier object
 param tokens object
 param vNetDnsServers array
+
+var customPublicIPAddressNames = [for i in range(1, firewallCustomPipCount): deploymentProfile == 'customer-il2'
+  ? replace(tier.namingConvention.azureFirewallPublicIPAddress, tokens.purpose, 'client${delimiter}${i}')
+  : '${replace(tier.namingConvention.azureFirewallPublicIPAddress, tokens.purpose, 'client')}${delimiter}${i}'
+]
 
 var subnets = union([
   {
@@ -301,7 +308,7 @@ module firewallCustomPublicIPAddresses '../modules/public-ip-address.bicep' = [f
     availabilityZones: firewallClientPublicIPAddressAvailabilityZones
     location: location
     mlzTags: mlzTags
-    name: '${replace(tier.namingConvention.azureFirewallPublicIPAddress, tokens.purpose, 'client')}${delimiter}${i}'
+    name: customPublicIPAddressNames[i - 1]
     publicIpAllocationMethod: 'Static'
     skuName: 'Standard'
     tags: tags
@@ -315,6 +322,7 @@ module firewall '../modules/firewall.bicep' = {
     clientIpConfigurationPublicIPAddressResourceId: firewallClientPublicIPAddress.outputs.id
     clientIpConfigurationSubnetResourceId: '${virtualNetwork.outputs.id}/subnets/AzureFirewallSubnet'
     customPipCount: firewallCustomPipCount
+    customPublicIPAddressNames: customPublicIPAddressNames
     customPublicIPAddressNamePrefix: '${replace(tier.namingConvention.azureFirewallPublicIPAddress, tokens.purpose, 'client')}${delimiter}'
     dnsServers: dnsServers
     enableProxy: enableProxy

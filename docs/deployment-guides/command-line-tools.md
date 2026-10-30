@@ -42,8 +42,8 @@ Resource group and resource names are derived from the following parameters:
 
 Parameter Name | Default Value | Description
 :------------- | :------------ | :----------
-`environmentAbbreviation` | dev | The abbreviation for the target environment.
-`resourcePrefix` |  | A prefix, 1-6 alphanumeric characters without whitespace, used to prefix resources and generate uniqueness for resources within your subscription. Ideally, the value should represent a department or project within your organization.
+`environmentAbbreviation` | dev | Tags and service settings; also a naming component for `legacy` and temporary CMK VM templates.
+`identifier` | Required | 1-5 lowercase alphanumeric characters; final customer/deployment suffix for `customer-il2` (use `mlz`), upstream identifier position for `legacy`.
 
 ### Deployment Scope
 
@@ -63,8 +63,9 @@ storage, and diagnostics; Hub retains Firewall, routing, private DNS, and encryp
 Use `deploymentProfile=legacy` with Azure CLI, or `-deploymentProfile legacy` with
 PowerShell, to retain the upstream Hub/Operations/Shared Services topology and its
 optional Identity, ADDS, and jump-box switches. ADDS requires both Identity and ADDS
-switches. The profile does not change resource naming: the existing identifier,
-environment, location, tier, and resource-role convention remains in effect.
+switches. The legacy profile also preserves the existing identifier, environment,
+location, tier, and resource-role naming convention. The default customer profile
+uses the centralized customer naming rules described below.
 
 > [!WARNING]
 > Changing profiles in an existing incremental deployment does not delete excluded
@@ -77,7 +78,7 @@ The optional parameters related to subscriptions are below. They default to the 
 
 Parameter Name | Default Value | Description
 :------------- | :------------ | :----------
-`deploymentProfile` | customer-il2 | Two-tier customer topology, or `legacy` for the upstream topology.
+`deploymentProfile` | customer-il2 | Two-tier customer topology and naming, or `legacy` for upstream topology and naming.
 `deployIdentity` | false | Legacy profile only: choose to deploy the Identity tier.
 `hubSubscriptionId` | Deployment subscription | Subscription containing the firewall and network hub
 `identitySubscriptionId` | Deployment subscription | Legacy profile only: Tier 0 for identity solutions
@@ -296,11 +297,47 @@ Parameter Name | Default Value | Description
 
 ### Modifying the Naming Conventions
 
-MLZ resources are named according to the naming conventions defined in the following bicep file: [src/bicep/modules/naming-convention.bicep](../../src/modules/naming-convention.bicep)
+MLZ resources are named centrally in [naming-convention.bicep](../../src/modules/naming-convention.bicep).
 
-There are two conventions used, depending on the type of resource. One convention is used to signify the relationship between itself and parent resources so the name contains a service token. The other convention is the same except it lacks the service token. Global resources, like storage accounts, use the unique string function to create names that will prevent collisions with other Azure customers.
+For `customer-il2`, `scca` and `il2` are constants, the region abbreviation comes
+from [locations.json](../../src/data/locations.json), and the required `identifier`
+parameter is the final customer/deployment suffix. Use `identifier=mlz` and
+`location=usgovvirginia` for these representative names:
 
-When modifying the naming conventions, be sure to only reorder the components or remove components for the `namingConvention` and `namingConvention_Service` variables.
+| Resource | Customer name |
+| --- | --- |
+| Firewall / policy | `afw-scca-va-il2-mlz` / `afwp-scca-va-il2-mlz` |
+| Firewall public IPs | `pip-scca-va-il2-afw-client-mlz` / `pip-scca-va-il2-afw-management-mlz` |
+| Tier resource groups | `rg-scca-va-il2-hub-mlz` / `rg-scca-va-il2-operations-mlz` |
+| Tier networks | `vnet-scca-va-il2-hub-mlz` / `vnet-scca-va-il2-operations-mlz` |
+| Operations workspace / scope | `log-scca-va-il2-operations-mlz` / `pls-scca-va-il2-operations-mlz` |
+| Monitor endpoint / NIC | `pe-scca-va-il2-operations-pls-mlz` / `nic-scca-va-il2-operations-pls-mlz` |
+| VNet diagnostics | `diag-scca-va-il2-hub-vnet-mlz` |
+
+NSGs, route tables, convention-generated subnets, storage endpoints, diagnostics,
+flow logs, and encryption-support identities retain their tier/service/role
+discriminators. The resource-group purpose `network` is deliberately omitted.
+`environmentAbbreviation` remains available for tags and service settings, but does
+not affect customer infrastructure names. Actual resource placement still follows
+`location`; Virginia's `va` is not an independent editable naming field.
+
+Key Vault and storage accounts retain their existing specialized `uniqueString`
+algorithms and uniqueness scope, with the new context flowing into their seeds.
+Temporary CMK VM, disk, and VM NIC templates retain legacy naming, including their
+environment component; there is no VM/computer-name redesign. Required Azure subnet
+names, private DNS domains, derived parent-resource names, GUID role assignments,
+and deployment names retain their existing behavior.
+
+`legacy` retains the upstream `namingConvention` and `namingConvention_Service`
+templates, tokens, and stamp behavior. Shared naming modules default to `legacy`
+when called without a profile, preserving add-on naming. Only Hub and Operations
+receive customer overrides. VDMS, DCs, customer Shared Services, and other follow-on
+workloads are outside this naming profile.
+
+> [!WARNING]
+> Azure resource renaming is not an in-place migration. Applying customer naming to
+> an existing legacy-named deployment can create parallel resources; plan migration
+> and cleanup explicitly. An incremental deployment does not remove old names.
 
 > [!WARNING]
 > When changing any bicep files, be sure to compile the changes to JSON.

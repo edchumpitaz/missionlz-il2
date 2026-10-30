@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "15383826509241098061"
+      "templateHash": "8286686100635896128"
     }
   },
   "parameters": {
@@ -219,7 +219,7 @@
         "legacy"
       ],
       "metadata": {
-        "description": "customer-il2 deploys only Hub and Operations and disables MLZ Identity, ADDS, and jump-box workloads regardless of their switches. legacy preserves the upstream topology. Resource naming is unchanged."
+        "description": "customer-il2 deploys only Hub and Operations with SCCA/region/IL2 naming and disables MLZ Identity, ADDS, and jump-box workloads regardless of their switches. legacy preserves the upstream topology and resource naming."
       }
     },
     "deployNetworkWatcherTrafficAnalytics": {
@@ -539,7 +539,7 @@
       "minLength": 1,
       "maxLength": 5,
       "metadata": {
-        "description": "1-5 alphanumeric characters without whitespace, used to name resources and generate uniqueness for resources within your subscription. Ideally, the value should represent an organization, department, or business unit."
+        "description": "1-5 lowercase alphanumeric characters. Customer/deployment suffix for customer-il2 (mlz produces names ending in -mlz); legacy retains the upstream identifier position. Also used in global-resource hash seeds."
       }
     },
     "identityNetworkSecurityGroupDiagnosticsLogs": {
@@ -1178,6 +1178,9 @@
           "enableProxy": {
             "value": "[parameters('enableProxy')]"
           },
+          "deploymentProfile": {
+            "value": "[parameters('deploymentProfile')]"
+          },
           "environmentAbbreviation": {
             "value": "[parameters('environmentAbbreviation')]"
           },
@@ -1216,7 +1219,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "15199535151828460583"
+              "templateHash": "5406818587707424160"
             }
           },
           "parameters": {
@@ -1237,6 +1240,14 @@
             },
             "deploymentNameSuffix": {
               "type": "string"
+            },
+            "deploymentProfile": {
+              "type": "string",
+              "defaultValue": "legacy",
+              "allowedValues": [
+                "customer-il2",
+                "legacy"
+              ]
             },
             "dnsServers": {
               "type": "array"
@@ -1300,6 +1311,9 @@
                   "deploymentNameSuffix": {
                     "value": "[parameters('deploymentNameSuffix')]"
                   },
+                  "deploymentProfile": {
+                    "value": "[parameters('deploymentProfile')]"
+                  },
                   "environmentAbbreviation": {
                     "value": "[parameters('environmentAbbreviation')]"
                   },
@@ -1320,7 +1334,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.39.26.7824",
-                      "templateHash": "4387242257055463833"
+                      "templateHash": "8346408507033199995"
                     }
                   },
                   "parameters": {
@@ -1329,6 +1343,14 @@
                     },
                     "deploymentNameSuffix": {
                       "type": "string"
+                    },
+                    "deploymentProfile": {
+                      "type": "string",
+                      "defaultValue": "legacy",
+                      "allowedValues": [
+                        "customer-il2",
+                        "legacy"
+                      ]
                     },
                     "environmentAbbreviation": {
                       "type": "string"
@@ -1798,6 +1820,9 @@
                           "delimiter": {
                             "value": "[parameters('delimiter')]"
                           },
+                          "deploymentProfile": {
+                            "value": "[parameters('deploymentProfile')]"
+                          },
                           "environmentAbbreviation": {
                             "value": "[parameters('environmentAbbreviation')]"
                           },
@@ -1824,7 +1849,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.39.26.7824",
-                              "templateHash": "2047146925613763360"
+                              "templateHash": "14100323944460034794"
                             }
                           },
                           "parameters": {
@@ -1833,6 +1858,14 @@
                               "allowedValues": [
                                 "",
                                 "-"
+                              ]
+                            },
+                            "deploymentProfile": {
+                              "type": "string",
+                              "defaultValue": "legacy",
+                              "allowedValues": [
+                                "customer-il2",
+                                "legacy"
                               ]
                             },
                             "environmentAbbreviation": {
@@ -1863,7 +1896,7 @@
                             },
                             "namingConvention": "[format('{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}{10}{11}', toLower(parameters('identifier')), parameters('delimiter'), parameters('environmentAbbreviation'), parameters('delimiter'), parameters('locationAbbreviation'), parameters('delimiter'), parameters('networkName'), parameters('delimiter'), variables('tokens').resource, parameters('delimiter'), variables('tokens').purpose, if(empty(parameters('stampIndex')), '', format('{0}{1}', parameters('delimiter'), parameters('stampIndex'))))]",
                             "namingConvention_Service": "[format('{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}{10}{11}{12}{13}', toLower(parameters('identifier')), parameters('delimiter'), parameters('environmentAbbreviation'), parameters('delimiter'), parameters('locationAbbreviation'), parameters('delimiter'), parameters('networkName'), parameters('delimiter'), variables('tokens').service, parameters('delimiter'), variables('tokens').resource, parameters('delimiter'), variables('tokens').purpose, if(empty(parameters('stampIndex')), '', format('{0}{1}', parameters('delimiter'), parameters('stampIndex'))))]",
-                            "names": {
+                            "legacyNames": {
                               "actionGroup": "[replace(variables('namingConvention'), variables('tokens').resource, parameters('resourceAbbreviations').actionGroups)]",
                               "applicationGroup": "[replace(variables('namingConvention'), variables('tokens').resource, parameters('resourceAbbreviations').applicationGroups)]",
                               "applicationInsights": "[replace(variables('namingConvention'), variables('tokens').resource, parameters('resourceAbbreviations').applicationInsights)]",
@@ -1960,6 +1993,60 @@
                               "workspaceDiagnosticSetting": "[replace(replace(variables('namingConvention_Service'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').workspaces)]",
                               "workspaceNetworkInterface": "[replace(replace(variables('namingConvention_Service'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, parameters('resourceAbbreviations').workspaces)]",
                               "workspacePrivateEndpoint": "[replace(replace(variables('namingConvention_Service'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, parameters('resourceAbbreviations').workspaces)]"
+                            },
+                            "isCustomerProfile": "[and(equals(parameters('deploymentProfile'), 'customer-il2'), contains(createArray('hub', 'operations'), parameters('networkName')))]",
+                            "customerContext": "[format('scca{0}{1}{2}il2', parameters('delimiter'), parameters('locationAbbreviation'), parameters('delimiter'))]",
+                            "customerSuffix": "[format('{0}{1}', parameters('delimiter'), toLower(parameters('identifier')))]",
+                            "customerSingleton": "[format('{0}{1}{2}{3}{4}{5}', variables('tokens').resource, parameters('delimiter'), variables('customerContext'), parameters('delimiter'), variables('tokens').purpose, variables('customerSuffix'))]",
+                            "customerSingletonService": "[format('{0}{1}{2}{3}{4}{5}{6}{7}', variables('tokens').resource, parameters('delimiter'), variables('customerContext'), parameters('delimiter'), variables('tokens').service, parameters('delimiter'), variables('tokens').purpose, variables('customerSuffix'))]",
+                            "customerTier": "[format('{0}{1}{2}{3}{4}{5}{6}{7}', variables('tokens').resource, parameters('delimiter'), variables('customerContext'), parameters('delimiter'), parameters('networkName'), parameters('delimiter'), variables('tokens').purpose, variables('customerSuffix'))]",
+                            "customerTierService": "[format('{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}', variables('tokens').resource, parameters('delimiter'), variables('customerContext'), parameters('delimiter'), parameters('networkName'), parameters('delimiter'), variables('tokens').service, parameters('delimiter'), variables('tokens').purpose, variables('customerSuffix'))]",
+                            "customerNames": {
+                              "azureFirewall": "[replace(variables('customerSingleton'), variables('tokens').resource, parameters('resourceAbbreviations').azureFirewalls)]",
+                              "azureFirewallPolicy": "[replace(variables('customerSingleton'), variables('tokens').resource, parameters('resourceAbbreviations').firewallPolicies)]",
+                              "azureFirewallPublicIPAddress": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').publicIPAddresses), variables('tokens').service, parameters('resourceAbbreviations').azureFirewalls)]",
+                              "azureFirewallPublicIPAddressDiagnosticSetting": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}{2}', parameters('resourceAbbreviations').publicIPAddresses, parameters('delimiter'), parameters('resourceAbbreviations').azureFirewalls))]",
+                              "azureFirewallDiagnosticSetting": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').azureFirewalls)]",
+                              "bastionHost": "[replace(variables('customerSingleton'), variables('tokens').resource, parameters('resourceAbbreviations').bastionHosts)]",
+                              "bastionHostDiagnosticSetting": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').bastionHosts)]",
+                              "bastionHostNetworkSecurityGroup": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').networkSecurityGroups), variables('tokens').service, parameters('resourceAbbreviations').bastionHosts)]",
+                              "bastionHostNetworkSecurityGroupDiagnosticSetting": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}{2}', parameters('resourceAbbreviations').networkSecurityGroups, parameters('delimiter'), parameters('resourceAbbreviations').bastionHosts))]",
+                              "bastionHostPublicIPAddress": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').publicIPAddresses), variables('tokens').service, parameters('resourceAbbreviations').bastionHosts)]",
+                              "bastionHostPublicIPAddressDiagnosticSetting": "[replace(replace(variables('customerSingletonService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}{2}', parameters('resourceAbbreviations').publicIPAddresses, parameters('delimiter'), parameters('resourceAbbreviations').bastionHosts))]",
+                              "keyVault": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').keyVaults)]",
+                              "keyVaultDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').keyVaults)]",
+                              "keyVaultNetworkInterface": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, parameters('resourceAbbreviations').keyVaults)]",
+                              "keyVaultPrivateEndpoint": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, parameters('resourceAbbreviations').keyVaults)]",
+                              "logAnalyticsWorkspace": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').logAnalyticsWorkspaces)]",
+                              "logAnalyticsWorkspaceDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').logAnalyticsWorkspaces)]",
+                              "networkSecurityGroup": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').networkSecurityGroups)]",
+                              "networkSecurityGroupDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').networkSecurityGroups)]",
+                              "networkWatcherFlowLogsNetworkSecurityGroup": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkWatchersFlowLogs), variables('tokens').service, parameters('resourceAbbreviations').networkSecurityGroups)]",
+                              "networkWatcherFlowLogsVirtualNetwork": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkWatchersFlowLogs), variables('tokens').service, parameters('resourceAbbreviations').virtualNetworks)]",
+                              "privateLinkScope": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').privateLinkScopes)]",
+                              "privateLinkScopeNetworkInterface": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, parameters('resourceAbbreviations').privateLinkScopes)]",
+                              "privateLinkScopePrivateEndpoint": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, parameters('resourceAbbreviations').privateLinkScopes)]",
+                              "resourceGroup": "[replace(replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').resourceGroups), format('{0}{1}', parameters('delimiter'), variables('tokens').purpose), '')]",
+                              "routeTable": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').routeTables)]",
+                              "storageAccount": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').storageAccounts)]",
+                              "storageAccountBlobDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}blob', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountBlobNetworkInterface": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, format('{0}{1}blob', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountBlobPrivateEndpoint": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, format('{0}{1}blob', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').storageAccounts)]",
+                              "storageAccountFileDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}file', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountFileNetworkInterface": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, format('{0}{1}file', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountFilePrivateEndpoint": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, format('{0}{1}file', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountQueueDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}queue', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountQueueNetworkInterface": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, format('{0}{1}queue', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountQueuePrivateEndpoint": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, format('{0}{1}queue', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountTableDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}table', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountTableNetworkInterface": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').networkInterfaces), variables('tokens').service, format('{0}{1}table', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "storageAccountTablePrivateEndpoint": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').privateEndpoints), variables('tokens').service, format('{0}{1}table', parameters('resourceAbbreviations').storageAccounts, parameters('delimiter')))]",
+                              "subnet": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').subnets)]",
+                              "userAssignedIdentity": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').userAssignedIdentities)]",
+                              "virtualMachineNetworkInterfaceDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, format('{0}{1}{2}', parameters('resourceAbbreviations').networkInterfaces, parameters('delimiter'), parameters('resourceAbbreviations').virtualMachines))]",
+                              "virtualNetwork": "[replace(variables('customerTier'), variables('tokens').resource, parameters('resourceAbbreviations').virtualNetworks)]",
+                              "virtualNetworkDiagnosticSetting": "[replace(replace(variables('customerTierService'), variables('tokens').resource, parameters('resourceAbbreviations').diagnosticSettings), variables('tokens').service, parameters('resourceAbbreviations').virtualNetworks)]"
                             }
                           },
                           "resources": [],
@@ -1970,7 +2057,7 @@
                             },
                             "names": {
                               "type": "object",
-                              "value": "[variables('names')]"
+                              "value": "[if(variables('isCustomerProfile'), union(variables('legacyNames'), variables('customerNames')), variables('legacyNames'))]"
                             },
                             "tokens": {
                               "type": "object",
@@ -2284,6 +2371,9 @@
                   "deployBastion": {
                     "value": "[parameters('deployBastion')]"
                   },
+                  "deploymentProfile": {
+                    "value": "[parameters('deploymentProfile')]"
+                  },
                   "deploymentNameSuffix": {
                     "value": "[parameters('deploymentNameSuffix')]"
                   },
@@ -2357,7 +2447,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.39.26.7824",
-                      "templateHash": "9496001559948279181"
+                      "templateHash": "11924828025443516787"
                     }
                   },
                   "parameters": {
@@ -2378,6 +2468,14 @@
                     },
                     "deploymentNameSuffix": {
                       "type": "string"
+                    },
+                    "deploymentProfile": {
+                      "type": "string",
+                      "defaultValue": "legacy",
+                      "allowedValues": [
+                        "customer-il2",
+                        "legacy"
+                      ]
                     },
                     "dnsServers": {
                       "type": "array"
@@ -2451,6 +2549,13 @@
                     }
                   },
                   "variables": {
+                    "copy": [
+                      {
+                        "name": "customPublicIPAddressNames",
+                        "count": "[length(range(1, parameters('firewallCustomPipCount')))]",
+                        "input": "[if(equals(parameters('deploymentProfile'), 'customer-il2'), replace(parameters('tier').namingConvention.azureFirewallPublicIPAddress, parameters('tokens').purpose, format('client{0}{1}', parameters('delimiter'), range(1, parameters('firewallCustomPipCount'))[copyIndex('customPublicIPAddressNames')])), format('{0}{1}{2}', replace(parameters('tier').namingConvention.azureFirewallPublicIPAddress, parameters('tokens').purpose, 'client'), parameters('delimiter'), range(1, parameters('firewallCustomPipCount'))[copyIndex('customPublicIPAddressNames')]))]"
+                      }
+                    ],
                     "bastionNetworkSecurityGroupRules": [
                       {
                         "name": "AllowHttpsInBound",
@@ -3166,7 +3271,7 @@
                             "value": "[parameters('mlzTags')]"
                           },
                           "name": {
-                            "value": "[format('{0}{1}{2}', replace(parameters('tier').namingConvention.azureFirewallPublicIPAddress, parameters('tokens').purpose, 'client'), parameters('delimiter'), range(1, parameters('firewallCustomPipCount'))[copyIndex()])]"
+                            "value": "[variables('customPublicIPAddressNames')[sub(range(1, parameters('firewallCustomPipCount'))[copyIndex()], 1)]]"
                           },
                           "publicIpAllocationMethod": {
                             "value": "Static"
@@ -3257,6 +3362,9 @@
                           "customPipCount": {
                             "value": "[parameters('firewallCustomPipCount')]"
                           },
+                          "customPublicIPAddressNames": {
+                            "value": "[variables('customPublicIPAddressNames')]"
+                          },
                           "customPublicIPAddressNamePrefix": {
                             "value": "[format('{0}{1}', replace(parameters('tier').namingConvention.azureFirewallPublicIPAddress, parameters('tokens').purpose, 'client'), parameters('delimiter'))]"
                           },
@@ -3313,7 +3421,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.39.26.7824",
-                              "templateHash": "13183829701566645659"
+                              "templateHash": "18419276774100294934"
                             }
                           },
                           "parameters": {
@@ -3330,6 +3438,10 @@
                             "customPublicIPAddressNamePrefix": {
                               "type": "string",
                               "defaultValue": ""
+                            },
+                            "customPublicIPAddressNames": {
+                              "type": "array",
+                              "defaultValue": []
                             },
                             "dnsServers": {
                               "type": "array"
@@ -3401,7 +3513,7 @@
                                   "name": "[format('ipconfig-client-{0}', range(1, parameters('customPipCount'))[copyIndex('customIpConfigurations')])]",
                                   "properties": {
                                     "publicIPAddress": {
-                                      "id": "[resourceId(parameters('subscriptionId'), parameters('resourceGroupName'), 'Microsoft.Network/publicIPAddresses', format('{0}{1}', parameters('customPublicIPAddressNamePrefix'), range(1, parameters('customPipCount'))[copyIndex('customIpConfigurations')]))]"
+                                      "id": "[resourceId(parameters('subscriptionId'), parameters('resourceGroupName'), 'Microsoft.Network/publicIPAddresses', if(empty(parameters('customPublicIPAddressNames')), format('{0}{1}', parameters('customPublicIPAddressNamePrefix'), range(1, parameters('customPipCount'))[copyIndex('customIpConfigurations')]), parameters('customPublicIPAddressNames')[sub(range(1, parameters('customPipCount'))[copyIndex('customIpConfigurations')], 1)]))]"
                                     }
                                   }
                                 }

@@ -135,7 +135,7 @@ param deploymentNameSuffix string = utcNow()
   'customer-il2'
   'legacy'
 ])
-@description('customer-il2 deploys only Hub and Operations and disables MLZ Identity, ADDS, and jump-box workloads regardless of their switches. legacy preserves the upstream topology. Resource naming is unchanged.')
+@description('customer-il2 deploys only Hub and Operations with SCCA/region/IL2 naming and disables MLZ Identity, ADDS, and jump-box workloads regardless of their switches. legacy preserves the upstream topology and resource naming.')
 param deploymentProfile string = 'customer-il2'
 
 @description('When set to true, deploys Network Watcher Traffic Analytics. Default value = "false".')
@@ -338,7 +338,7 @@ param hybridUseBenefit bool = false
 
 @minLength(1)
 @maxLength(5)
-@description('1-5 alphanumeric characters without whitespace, used to name resources and generate uniqueness for resources within your subscription. Ideally, the value should represent an organization, department, or business unit.')
+@description('1-5 lowercase alphanumeric characters. Customer/deployment suffix for customer-il2 (mlz produces names ending in -mlz); legacy retains the upstream identifier position. Also used in global-resource hash seeds.')
 param identifier string
 
 @description('An array of Network Security Group diagnostic logs to apply to the Identity Virtual Network. See the following URL for valid settings: https://learn.microsoft.com/azure/virtual-network/virtual-network-nsg-manage-log#log-categories.')
@@ -763,6 +763,7 @@ module networking 'modules/networking.bicep' = {
     deployAzureGatewaySubnet: deployAzureGatewaySubnet
     dnsServers: dnsServers
     enableProxy: enableProxy
+    deploymentProfile: deploymentProfile
     environmentAbbreviation: environmentAbbreviation
     firewallSettings: {
       clientPrivateIpAddress: firewallClientPrivateIpAddress

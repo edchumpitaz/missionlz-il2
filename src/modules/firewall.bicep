@@ -7,6 +7,7 @@ param clientIpConfigurationSubnetResourceId string
 param clientIpConfigurationPublicIPAddressResourceId string
 param customPipCount int = 0
 param customPublicIPAddressNamePrefix string = ''
+param customPublicIPAddressNames array = []
 param dnsServers array
 param enableProxy bool
 param firewallPolicyName string
@@ -65,7 +66,7 @@ var customIpConfigurations = [for i in range(1, customPipCount): {
   name: 'ipconfig-client-${i}'
   properties: {
     publicIPAddress: {
-      id: resourceId(subscriptionId, resourceGroupName, 'Microsoft.Network/publicIPAddresses', '${customPublicIPAddressNamePrefix}${i}')
+      id: resourceId(subscriptionId, resourceGroupName, 'Microsoft.Network/publicIPAddresses', empty(customPublicIPAddressNames) ? '${customPublicIPAddressNamePrefix}${i}' : customPublicIPAddressNames[i - 1])
     }
   }
 }]
