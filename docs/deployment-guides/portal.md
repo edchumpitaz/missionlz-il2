@@ -29,6 +29,18 @@ Click the appropriate button below to open the deployment UI.
 
 ### STEP 1: Basics
 
+The local portal definition defaults to the `customer-il2` deployment profile: Hub and
+Operations only. Identity, ADDS, Shared Services, and MLZ jump-box workload controls are
+hidden and disabled for this profile. VDMS and Shared Services are customer-managed
+follow-on deployments. Select `legacy` to expose the upstream topology and workload
+options described below. Naming is unchanged in both profiles.
+
+> [!IMPORTANT]
+> The deployment buttons above reference upstream `Azure/missionlz`, not this private
+> repository. To use these customer profiles, deploy this repository's compiled
+> `src/mlz.json` together with its `src/mlz.uiDefinition.json`, for example through a
+> template spec. Do not expect the upstream buttons to use this repository's defaults.
+
 The first step in the deployment UI is the Basics step. This requires basic information for your MLZ deployment: Subscription(s), Location, Resource Naming Prefix, and Environment Abbreviation.
 
 #### Project Details
@@ -42,7 +54,8 @@ The project details provide the scope of the deployment. These elements also hel
 
 MLZ can deploy to a single subscription or multiple subscriptions. Microsoft recommends for test and evaluation deployments use a single subscription. For a production deployment a single subscription maybe used or multiple if you wish to keep billing of resources separate.
 
-Select subscription(s) for each: Hub, Identity, Operations, and Shared Services.  
+For `customer-il2`, select Hub and Operations subscriptions. For `legacy`, select Hub,
+Operations, Shared Services, and optionally Identity subscriptions.
 
 > [!NOTE]
 > The Identity option is not required. This is intended for customers that need to deploy domain controllers in Azure.

@@ -23,6 +23,13 @@ param tags object
 
 var hubSubscriptionId = filter(networks, network => network.name == 'hub')[0].subscriptionId
 var spokes = filter(networks, network => network.name != 'hub')
+var resourceGroupNamesByTier = toObject(resourceGroups.outputs.tiers, tier => tier.name, tier => tier.resourceGroupName)
+var spokeEntries = [for (spoke, i) in spokes: {
+  name: spoke.name
+  index: i
+}]
+var spokeIndexesByTier = toObject(spokeEntries, tier => tier.name, tier => tier.index)
+var hasIdentity = deployIdentity && contains(map(spokes, spoke => spoke.name), 'identity')
 
 module logic 'logic.bicep' = {
   name: 'get-logic-${deploymentNameSuffix}'
@@ -72,7 +79,7 @@ module hubNetwork 'hub-network.bicep' = {
     firewallRuleCollectionGroups: firewallRuleCollectionGroups
     location: location
     mlzTags: logic.outputs.mlzTags 
-    resourceGroupName: filter(resourceGroups.outputs.names, name => contains(name, 'hub'))[0]
+    resourceGroupName: resourceGroupNamesByTier.hub
     subscriptionId: hubSubscriptionId
     tags: tags
     tier: filter(logic.outputs.tiers, tier => tier.name == 'hub')[0]
@@ -89,7 +96,7 @@ module spokeNetworks 'spoke-network.bicep' = [for (spoke, i) in spokes: {
     delimiter: logic.outputs.delimiter
     location: location
     mlzTags: logic.outputs.mlzTags
-    resourceGroupName: filter(resourceGroups.outputs.names, name => contains(name, spoke.name))[0]
+    resourceGroupName: resourceGroupNamesByTier[spoke.name]
     routeTableRouteNextHopIpAddress: firewallSettings.clientPrivateIpAddress
     tags: tags
     tier: filter(logic.outputs.tiers, tier => tier.name == spoke.name)[0]
@@ -105,7 +112,7 @@ module hubVirtualNetworkPeerings 'hub-network-peerings.bicep' = [for (spoke, i) 
   params: {
     deploymentNameSuffix: deploymentNameSuffix
     hubVirtualNetworkName: hubNetwork.outputs.virtualNetworkName
-    resourceGroupName: filter(resourceGroups.outputs.names, name => contains(name, 'hub'))[0]
+    resourceGroupName: resourceGroupNamesByTier.hub
     spokeShortName: spoke.shortName
     spokeVirtualNetworkResourceId: spokeNetworks[i].outputs.virtualNetworkResourceId
     subscriptionId: hubSubscriptionId
@@ -117,7 +124,7 @@ module spokeVirtualNetworkPeerings 'spoke-network-peering.bicep' = [for (spoke, 
   params: {
     deploymentNameSuffix: deploymentNameSuffix
     hubVirtualNetworkResourceId: hubNetwork.outputs.virtualNetworkResourceId
-    resourceGroupName: filter(resourceGroups.outputs.names, name => contains(name, spoke.name))[0]
+    resourceGroupName: resourceGroupNamesByTier[spoke.name]
     spokeShortName: spoke.shortName
     spokeVirtualNetworkName: spokeNetworks[i].outputs.virtualNetworkName
     subscriptionId: spoke.subscriptionId
@@ -129,13 +136,13 @@ module spokeVirtualNetworkPeerings 'spoke-network-peering.bicep' = [for (spoke, 
 module privateDnsZones 'private-dns-zones.bicep' = {
   name: 'deploy-private-dns-zones-${deploymentNameSuffix}'
   params: {
-    deployIdentity: deployIdentity
+    deployIdentity: hasIdentity
     deploymentNameSuffix: deploymentNameSuffix
     hubVirtualNetworkResourceId: hubNetwork.outputs.virtualNetworkResourceId
-    identityVirtualNetworkResourceId: deployIdentity ? spokeNetworks[2].outputs.virtualNetworkResourceId : ''
+    identityVirtualNetworkResourceId: hasIdentity ? spokeNetworks[spokeIndexesByTier.identity].outputs.virtualNetworkResourceId : ''
     mlzTags: logic.outputs.mlzTags
     privateDnsZoneNames: logic.outputs.privateDnsZones
-    resourceGroupName: filter(resourceGroups.outputs.names, name => contains(name, 'hub'))[0]
+    resourceGroupName: resourceGroupNamesByTier.hub
     subscriptionId: hubSubscriptionId
     tags: tags
   }
@@ -163,27 +170,22 @@ output privateDnsZoneResourceIds object = {
   table: filter(privateDnsZones.outputs.privateDnsZoneResourceIds, id => contains(id, 'table'))[0]
 }
 output resourceAbbreviations object = logic.outputs.resourceAbbreviations
-output sharedServicesSubnetResourceId string = spokeNetworks[1].outputs.networkSecurityGroupResourceId 
+// Preserve the legacy NSG-valued output; the customer profile deliberately has no Shared Services tier.
+output sharedServicesSubnetResourceId string = contains(map(spokes, spoke => spoke.name), 'sharedServices')
+  ? spokeNetworks[spokeIndexesByTier.sharedServices].outputs.networkSecurityGroupResourceId
+  : ''
 output tiers array = [for (network, i) in networks: {
   name: network.name
   namingConvention: logic.outputs.tiers[i].namingConvention
-  networkSecurityGroupResourceId: union([
-    hubNetwork.outputs.networkSecurityGroupResourceId
-    spokeNetworks[0].outputs.networkSecurityGroupResourceId // Operations
-    spokeNetworks[1].outputs.networkSecurityGroupResourceId // Shared Services
-  ], deployIdentity ? [
-    spokeNetworks[2].outputs.networkSecurityGroupResourceId // Identity
-  ] : [])[i]
+  networkSecurityGroupResourceId: network.name == 'hub'
+    ? hubNetwork.outputs.networkSecurityGroupResourceId
+    : spokeNetworks[spokeIndexesByTier[network.name]].outputs.networkSecurityGroupResourceId
   nsgDiagLogs: network.nsgDiagLogs
-  resourceGroupName: filter(resourceGroups.outputs.names, name => contains(name, network.name))[0]
+  resourceGroupName: resourceGroupNamesByTier[network.name]
   shortName: network.shortName
-  subnetResourceId: union([
-    hubNetwork.outputs.subnetResourceId
-    spokeNetworks[0].outputs.subnets[0].id // Operations
-    spokeNetworks[1].outputs.subnets[0].id // Shared Services
-  ], deployIdentity ? [
-    spokeNetworks[2].outputs.subnets[0].id // Identity
-  ] : [])[i]
+  subnetResourceId: network.name == 'hub'
+    ? hubNetwork.outputs.subnetResourceId
+    : spokeNetworks[spokeIndexesByTier[network.name]].outputs.subnets[0].id
   subscriptionId: network.subscriptionId
   vnetDiagLogs: network.vnetDiagLogs
   vnetDiagMetrics: network.vnetDiagMetrics

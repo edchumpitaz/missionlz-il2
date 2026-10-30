@@ -24,3 +24,7 @@ module resourceGroups 'resource-group.bicep' = [for tier in tiers: {
 }]
 
 output names array = [for (tier, i) in tiers: resourceGroups[i].outputs.name]
+output tiers array = [for (tier, i) in tiers: {
+  name: tier.name
+  resourceGroupName: resourceGroups[i].outputs.name
+}]

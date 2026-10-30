@@ -47,18 +47,43 @@ Parameter Name | Default Value | Description
 
 ### Deployment Scope
 
+This private repository defaults `deploymentProfile` to `customer-il2`. It owns only the
+Hub and Operations tiers, with one pair of Hub/Operations VNet peerings. Shared Services,
+Identity, ADDS, and MLZ jump-box workload resource groups are not deployed. Setting
+`deployIdentity`, `deployActiveDirectoryDomainServices`, `deployLinuxVirtualMachine`, or
+`deployWindowsVirtualMachine` to `true` cannot override this profile; these requests are
+ignored. Bastion remains optional, and the temporary CMK management VM workflow remains
+enabled as required by storage encryption.
+
+Customer-managed VDMS/domain controllers and Shared Services are deployed separately.
+Their resource groups, networks, peering, DNS integration, and workloads are outside
+this deployment's ownership. Operations retains Log Analytics, Private Link Scope,
+storage, and diagnostics; Hub retains Firewall, routing, private DNS, and encryption support.
+
+Use `deploymentProfile=legacy` with Azure CLI, or `-deploymentProfile legacy` with
+PowerShell, to retain the upstream Hub/Operations/Shared Services topology and its
+optional Identity, ADDS, and jump-box switches. ADDS requires both Identity and ADDS
+switches. The profile does not change resource naming: the existing identifier,
+environment, location, tier, and resource-role convention remains in effect.
+
+> [!WARNING]
+> Changing profiles in an existing incremental deployment does not delete excluded
+> resources. Plan their migration or removal separately. Subscription-wide Defender
+> and activity-log settings still apply to the selected Hub/Operations subscriptions.
+
 MLZ can deploy to a single subscription or multiple subscriptions. A test and evaluation deployment may deploy everything to a single subscription, and a production deployment may place each tier into its own subscription.
 
 The optional parameters related to subscriptions are below. They default to the subscription used for deployment.
 
 Parameter Name | Default Value | Description
 :------------- | :------------ | :----------
-`deployIdentity` | false | Choose to deploy the identity resources. The identity resoures are not required if you plan to use cloud identities.
+`deploymentProfile` | customer-il2 | Two-tier customer topology, or `legacy` for the upstream topology.
+`deployIdentity` | false | Legacy profile only: choose to deploy the Identity tier.
 `hubSubscriptionId` | Deployment subscription | Subscription containing the firewall and network hub
-`identitySubscriptionId` | Deployment subscription | Tier 0 for identity solutions
+`identitySubscriptionId` | Deployment subscription | Legacy profile only: Tier 0 for identity solutions
 `location` | deployment().location | The region to deploy resources into.
 `operationsSubscriptionId` | Deployment subscription | Tier 1 for network operations and security tools
-`sharedServicesSubscriptionId` | Deployment subscription | Tier 2 for shared services
+`sharedServicesSubscriptionId` | Deployment subscription | Legacy profile only: Tier 2 for shared services
 
 ### Networking
 

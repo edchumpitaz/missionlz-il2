@@ -37,6 +37,26 @@ result matches CI.
 The tests exercise the artifact scripts through **mocks** (no live Azure calls, no
 credentials, no network) and make **no edits** to the production scripts.
 
+### Deployment profile regression tests
+
+After changing core Bicep, regenerate the compiled template before running the
+profile tests (Azure CLI with the repository-pinned Bicep 0.39.26 is required):
+
+```powershell
+az bicep build --file .\src\mlz.bicep --outfile .\src\mlz.json
+Invoke-Pester -Path .\tests\DeploymentProfile.Tests.ps1 -Output Detailed
+```
+
+These tests evaluate compiled tier-selection and deployment-condition expressions
+for `customer-il2` and `legacy`, and verify downstream peering, storage, diagnostics,
+security, and portal-control contracts. NIC subnet metadata is substituted for the
+Azure GET response. The bounded ARM-expression test helper rejects unsupported
+functions rather than assuming a result. These are offline regression tests, not
+an Azure what-if or live deployment validation.
+
+The full test command above also discovers these tests. They do not change the
+PowerShell artifact coverage scope or baseline.
+
 ## How coverage is measured
 
 - Coverage is the **line-coverage percentage** from the report-level JaCoCo `LINE`
