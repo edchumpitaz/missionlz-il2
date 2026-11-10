@@ -900,6 +900,31 @@
               ]
             },
             {
+              "name": "diagnosticStorageSection",
+              "label": "Diagnostic storage encryption",
+              "type": "Microsoft.Common.Section",
+              "visible": "[equals(steps('basics').deploymentProfile, 'customer-il2')]",
+              "elements": [
+                {
+                  "name": "enableCustomerDiagnosticStorageCmk",
+                  "type": "Microsoft.Common.CheckBox",
+                  "label": "Use customer-managed keys for diagnostic storage?",
+                  "toolTip": "Default No (unchecked) uses Microsoft-managed keys and keeps infrastructure encryption enabled. Yes enables the existing MLZ diagnostic-storage CMK workflow. This setting applies only to MLZ diagnostic storage, not VDMS, domain-controller, Shared Services, or other workload encryption.",
+                  "constraints": {
+                    "required": false
+                  }
+                },
+                {
+                  "name": "diagnosticStorageCmkWarning",
+                  "type": "Microsoft.Common.InfoBox",
+                  "options": {
+                    "style": "Warning",
+                    "text": "No is the customer-il2 default and currently validated path (offline regression checks only, not a successful Azure deployment). The CMK-enabled Yes path has not been validated successfully in Azure and retains the known upstream TagsByResource issue."
+                  }
+                }
+              ]
+            },
+            {
               "name": "policySection",
               "label": "Assign Regulatory Compliance Policies",
               "type": "Microsoft.Common.Section",
@@ -1035,7 +1060,7 @@
               "visible": "[equals(steps('basics').deploymentProfile, 'customer-il2')]",
               "options": {
                 "style": "Info",
-                "text": "The customer-il2 profile deploys only Hub and Operations. Customer-managed VDMS/domain controllers and Shared Services, including their networks, are deployed separately. MLZ jump-box workloads are disabled; Bastion and encryption-support infrastructure remain available."
+                "text": "The customer-il2 profile deploys only Hub and Operations. Customer-managed VDMS/domain controllers and Shared Services, including their networks, are deployed separately. MLZ jump-box workloads are disabled; Bastion remains optional. Diagnostic storage uses Microsoft-managed keys by default; its CMK workflow is an explicit opt-in on the Compliance step."
               }
             },
             {
@@ -1674,6 +1699,7 @@
         "deploySentinel": "[steps('compliance').sentinelSection.deploySentinel]",
         "deployWindowsVirtualMachine": "[and(equals(steps('basics').deploymentProfile, 'legacy'), steps('remoteAccess').windowsVmSection.deployWindowsVirtualMachine)]",
         "emailSecurityContact": "[steps('compliance').defenderSection.emailSecurityContact]",
+        "enableCustomerDiagnosticStorageCmk": "[and(equals(steps('basics').deploymentProfile, 'customer-il2'), steps('compliance').diagnosticStorageSection.enableCustomerDiagnosticStorageCmk)]",
         "environmentAbbreviation": "[steps('basics').namingSection.environmentAbbreviation]",
         "firewallClientSubnetAddressPrefix": "[steps('networking').hubVirtualNetwork.firewallClientSubnetAddressCidrRange]",
         "firewallManagementSubnetAddressPrefix": "[steps('networking').hubVirtualNetwork.firewallManagementSubnetAddressCidrRange]",

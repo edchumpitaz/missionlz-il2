@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "17927659920306881692"
+      "templateHash": "974544544637790557"
     }
   },
   "parameters": {
@@ -220,6 +220,13 @@
       ],
       "metadata": {
         "description": "customer-il2 deploys only Hub and Operations with SCCA/region/IL2 naming and disables MLZ Identity, ADDS, and jump-box workloads regardless of their switches. legacy preserves the upstream topology and resource naming."
+      }
+    },
+    "enableCustomerDiagnosticStorageCmk": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "customer-il2 only: opt in to customer-managed keys for MLZ diagnostic storage. Default false uses Microsoft-managed keys with infrastructure encryption. legacy always enables CMK. Does not control workload encryption. The CMK-enabled path retains the known upstream TagsByResource issue."
       }
     },
     "deployNetworkWatcherTrafficAnalytics": {
@@ -1135,6 +1142,7 @@
     ],
     "firewallClientPrivateIpAddress": "[variables('firewallClientUsableIpAddresses')[3]]",
     "isLegacyProfile": "[equals(parameters('deploymentProfile'), 'legacy')]",
+    "effectiveDiagnosticStorageCmk": "[or(variables('isLegacyProfile'), parameters('enableCustomerDiagnosticStorageCmk'))]",
     "effectiveDeployIdentity": "[and(variables('isLegacyProfile'), parameters('deployIdentity'))]",
     "effectiveDeployActiveDirectoryDomainServices": "[and(variables('effectiveDeployIdentity'), parameters('deployActiveDirectoryDomainServices'))]",
     "effectiveDeployLinuxVirtualMachine": "[and(variables('isLegacyProfile'), parameters('deployLinuxVirtualMachine'))]",
@@ -9152,6 +9160,9 @@
           "deploymentNameSuffix": {
             "value": "[parameters('deploymentNameSuffix')]"
           },
+          "enableDiagnosticStorageCmk": {
+            "value": "[variables('effectiveDiagnosticStorageCmk')]"
+          },
           "environmentAbbreviation": {
             "value": "[parameters('environmentAbbreviation')]"
           },
@@ -9193,7 +9204,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "4047616631536786084"
+              "templateHash": "8883793939387119841"
             }
           },
           "parameters": {
@@ -9202,6 +9213,10 @@
             },
             "deploymentNameSuffix": {
               "type": "string"
+            },
+            "enableDiagnosticStorageCmk": {
+              "type": "bool",
+              "defaultValue": true
             },
             "environmentAbbreviation": {
               "type": "string"
@@ -9243,6 +9258,7 @@
           },
           "resources": [
             {
+              "condition": "[parameters('enableDiagnosticStorageCmk')]",
               "type": "Microsoft.Resources/deployments",
               "apiVersion": "2025-04-01",
               "name": "[format('deploy-st-cmk-{0}', parameters('deploymentNameSuffix'))]",
@@ -9862,15 +9878,16 @@
                   "delimiter": {
                     "value": "[parameters('delimiter')]"
                   },
+                  "enableDiagnosticStorageCmk": {
+                    "value": "[parameters('enableDiagnosticStorageCmk')]"
+                  },
                   "environmentAbbreviation": {
                     "value": "[parameters('environmentAbbreviation')]"
                   },
                   "filesPrivateDnsZoneResourceId": {
                     "value": "[parameters('privateDnsZoneResourceIds').file]"
                   },
-                  "keyVaultUri": {
-                    "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('subscriptionId'), variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-st-cmk-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultUri.value]"
-                  },
+                  "keyVaultUri": "[if(parameters('enableDiagnosticStorageCmk'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('subscriptionId'), variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-st-cmk-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultUri.value), createObject('value', ''))]",
                   "location": {
                     "value": "[parameters('location')]"
                   },
@@ -9886,9 +9903,7 @@
                   "skuName": {
                     "value": "[parameters('logStorageSkuName')]"
                   },
-                  "storageEncryptionKeyName": {
-                    "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('subscriptionId'), variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-st-cmk-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyName.value]"
-                  },
+                  "storageEncryptionKeyName": "[if(parameters('enableDiagnosticStorageCmk'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('subscriptionId'), variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-st-cmk-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyName.value), createObject('value', ''))]",
                   "subnetResourceId": {
                     "value": "[parameters('tiers')[copyIndex()].subnetResourceId]"
                   },
@@ -9904,9 +9919,7 @@
                   "tokens": {
                     "value": "[parameters('tokens')]"
                   },
-                  "userAssignedIdentityResourceId": {
-                    "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('subscriptionId'), variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-st-cmk-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.userAssignedIdentityResourceId.value]"
-                  }
+                  "userAssignedIdentityResourceId": "[if(parameters('enableDiagnosticStorageCmk'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('subscriptionId'), variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-st-cmk-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.userAssignedIdentityResourceId.value), createObject('value', ''))]"
                 },
                 "template": {
                   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -9915,7 +9928,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.39.26.7824",
-                      "templateHash": "10577964199298877336"
+                      "templateHash": "14376040994263967153"
                     }
                   },
                   "parameters": {
@@ -9924,6 +9937,10 @@
                     },
                     "delimiter": {
                       "type": "string"
+                    },
+                    "enableDiagnosticStorageCmk": {
+                      "type": "bool",
+                      "defaultValue": true
                     },
                     "environmentAbbreviation": {
                       "type": "string"
@@ -9972,6 +9989,24 @@
                     }
                   },
                   "variables": {
+                    "storageEncryptionServices": {
+                      "blob": {
+                        "keyType": "Account",
+                        "enabled": true
+                      },
+                      "file": {
+                        "keyType": "Account",
+                        "enabled": true
+                      },
+                      "queue": {
+                        "keyType": "Account",
+                        "enabled": true
+                      },
+                      "table": {
+                        "keyType": "Account",
+                        "enabled": true
+                      }
+                    },
                     "subResources": [
                       {
                         "id": "[parameters('blobsPrivateDnsZoneResourceId')]",
@@ -10002,12 +10037,7 @@
                       "name": "[uniqueString(replace(parameters('tier').namingConvention.storageAccount, parameters('tokens').purpose, parameters('purpose')), resourceGroup().id)]",
                       "location": "[parameters('location')]",
                       "tags": "[union(coalesce(tryGet(parameters('tags'), 'Microsoft.Storage/storageAccounts'), createObject()), parameters('mlzTags'))]",
-                      "identity": {
-                        "type": "UserAssigned",
-                        "userAssignedIdentities": {
-                          "[format('{0}', parameters('userAssignedIdentityResourceId'))]": {}
-                        }
-                      },
+                      "identity": "[if(parameters('enableDiagnosticStorageCmk'), createObject('type', 'UserAssigned', 'userAssignedIdentities', createObject(format('{0}', parameters('userAssignedIdentityResourceId')), createObject())), createObject('type', 'None'))]",
                       "kind": "StorageV2",
                       "sku": {
                         "name": "[parameters('skuName')]"
@@ -10020,35 +10050,7 @@
                         "allowSharedKeyAccess": false,
                         "defaultToOAuthAuthentication": false,
                         "dnsEndpointType": "Standard",
-                        "encryption": {
-                          "identity": {
-                            "userAssignedIdentity": "[parameters('userAssignedIdentityResourceId')]"
-                          },
-                          "keySource": "Microsoft.KeyVault",
-                          "keyvaultproperties": {
-                            "keyvaulturi": "[parameters('keyVaultUri')]",
-                            "keyname": "[parameters('storageEncryptionKeyName')]"
-                          },
-                          "requireInfrastructureEncryption": true,
-                          "services": {
-                            "blob": {
-                              "keyType": "Account",
-                              "enabled": true
-                            },
-                            "file": {
-                              "keyType": "Account",
-                              "enabled": true
-                            },
-                            "queue": {
-                              "keyType": "Account",
-                              "enabled": true
-                            },
-                            "table": {
-                              "keyType": "Account",
-                              "enabled": true
-                            }
-                          }
-                        },
+                        "encryption": "[if(parameters('enableDiagnosticStorageCmk'), createObject('identity', createObject('userAssignedIdentity', parameters('userAssignedIdentityResourceId')), 'keySource', 'Microsoft.KeyVault', 'keyvaultproperties', createObject('keyvaulturi', parameters('keyVaultUri'), 'keyname', parameters('storageEncryptionKeyName')), 'requireInfrastructureEncryption', true(), 'services', variables('storageEncryptionServices')), createObject('keySource', 'Microsoft.Storage', 'requireInfrastructureEncryption', true(), 'services', variables('storageEncryptionServices')))]",
                         "minimumTlsVersion": "TLS1_2",
                         "networkAcls": {
                           "bypass": "AzureServices",
@@ -10138,7 +10140,7 @@
           "outputs": {
             "keyVaultProperties": {
               "type": "object",
-              "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('subscriptionId'), variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-st-cmk-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value]"
+              "value": "[if(parameters('enableDiagnosticStorageCmk'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('subscriptionId'), variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-st-cmk-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value, createObject())]"
             },
             "networkInterfaceResourceIds": {
               "type": "array",
@@ -10212,7 +10214,7 @@
             "value": "[parameters('firewallDiagnosticsMetrics')]"
           },
           "keyVaults": {
-            "value": "[union(createArray(reference(subscriptionResourceId(parameters('hubSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-diag-storage-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value), if(variables('effectiveDeployActiveDirectoryDomainServices'), createArray(reference(subscriptionResourceId(parameters('identitySubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-adds-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value), createArray()), if(or(variables('effectiveDeployLinuxVirtualMachine'), variables('effectiveDeployWindowsVirtualMachine')), createArray(reference(subscriptionResourceId(parameters('hubSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-remote-access-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value), createArray()))]"
+            "value": "[union(if(variables('effectiveDiagnosticStorageCmk'), createArray(reference(subscriptionResourceId(parameters('hubSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-diag-storage-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value), createArray()), if(variables('effectiveDeployActiveDirectoryDomainServices'), createArray(reference(subscriptionResourceId(parameters('identitySubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-adds-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value), createArray()), if(or(variables('effectiveDeployLinuxVirtualMachine'), variables('effectiveDeployWindowsVirtualMachine')), createArray(reference(subscriptionResourceId(parameters('hubSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-remote-access-{0}', parameters('deploymentNameSuffix'))), '2025-04-01').outputs.keyVaultProperties.value), createArray()))]"
           },
           "keyVaultDiagnosticLogs": {
             "value": "[parameters('keyVaultDiagnosticsLogs')]"

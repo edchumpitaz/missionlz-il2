@@ -128,7 +128,7 @@ Describe 'Compiled deployment profile topology' {
                 Should -Be ($resource.name -like '*deploy-ra-bastion-host*')
         }
         $cmk = Get-TestModule $storageModule.properties.template 'deploy-st-cmk-'
-        $cmk.ContainsKey('condition') | Should -BeFalse
+        $cmk.condition | Should -BeExactly "[parameters('enableDiagnosticStorageCmk')]"
     }
 
     It 'returns the safe absent-tier output and keeps the historical legacy NSG-valued contract' {
@@ -169,6 +169,177 @@ Describe 'Compiled deployment profile topology' {
         Resolve-ArmTestExpression $rgLoop.copy.count @{
             Template = $rgModule.properties.template; Parameters = @{ tiers = @('hub', 'operations') }
         } | Should -Be 2
+    }
+}
+
+Describe 'Optional diagnostic storage CMK' {
+    BeforeAll {
+        $storage = $storageModule.properties.template
+        $cmk = Get-TestModule $storage 'deploy-st-cmk-'
+        $accounts = $storage.resources | Where-Object { $_.copy.name -eq 'storageAccounts' }
+        $accountTemplate = $accounts.properties.template
+        $account = $accountTemplate.resources | Where-Object type -eq 'Microsoft.Storage/storageAccounts'
+        $cmkReference = "reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('subscriptionId'), variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-st-cmk-{0}', parameters('deploymentNameSuffix'))), '$($cmk.apiVersion)')"
+        $storageReference = "reference(subscriptionResourceId(parameters('hubSubscriptionId'), 'Microsoft.Resources/deployments', format('deploy-diag-storage-{0}', parameters('deploymentNameSuffix'))), '$($storageModule.apiVersion)')"
+    }
+
+    It 'uses effective CMK=<Expected> for <Profile> with customer opt-in=<OptIn>' -ForEach @(
+        @{ Profile = 'customer-il2'; OptIn = 'omitted'; Expected = $false }
+        @{ Profile = 'customer-il2'; OptIn = $false; Expected = $false }
+        @{ Profile = 'customer-il2'; OptIn = $true; Expected = $true }
+        @{ Profile = 'legacy'; OptIn = 'omitted'; Expected = $true }
+        @{ Profile = 'legacy'; OptIn = $false; Expected = $true }
+        @{ Profile = 'legacy'; OptIn = $true; Expected = $true }
+    ) {
+        $overrides = @{ deploymentProfile = $Profile }
+        if ($OptIn -is [bool]) { $overrides.enableCustomerDiagnosticStorageCmk = $OptIn }
+        $rootContext = New-ProfileContext $overrides
+        $enabled = Resolve-ArmTestExpression $storageModule.properties.parameters.enableDiagnosticStorageCmk.value $rootContext
+        $enabled | Should -BeOfType ([bool])
+        $enabled | Should -Be $Expected
+        $storageContext = @{ Template = $storage; Parameters = @{ enableDiagnosticStorageCmk = $enabled } }
+        Resolve-ArmTestExpression $cmk.condition $storageContext | Should -Be $Expected
+        Resolve-ArmTestExpression $accounts.properties.parameters.enableDiagnosticStorageCmk.value $storageContext |
+            Should -Be $Expected
+        if ($Profile -eq 'customer-il2') {
+            (Resolve-ArmTestExpression $arm.variables.activeNetworks $rootContext).name |
+                Should -Be @('hub', 'operations')
+        }
+    }
+
+    It 'defaults the root opt-in off and both shared modules on for existing callers' {
+        $arm.parameters.enableCustomerDiagnosticStorageCmk.type | Should -BeExactly 'bool'
+        $arm.parameters.enableCustomerDiagnosticStorageCmk.defaultValue | Should -BeFalse
+        Resolve-ArmTestExpression $arm.variables.effectiveDiagnosticStorageCmk (New-ProfileContext) |
+            Should -BeFalse
+        foreach ($template in @($storage, $accountTemplate)) {
+            $template.parameters.enableDiagnosticStorageCmk.type | Should -BeExactly 'bool'
+            $template.parameters.enableDiagnosticStorageCmk.defaultValue | Should -BeTrue
+        }
+        Resolve-ArmTestExpression $cmk.condition @{ Template = $storage; Parameters = @{} } |
+            Should -BeTrue
+        $cmk.properties.parameters.type.value | Should -BeExactly 'storageAccount'
+    }
+
+    It 'does not evaluate any CMK outputs when disabled' {
+        $context = @{ Template = $storage; Parameters = @{ enableDiagnosticStorageCmk = $false } }
+        foreach ($name in @('keyVaultUri', 'storageEncryptionKeyName', 'userAssignedIdentityResourceId')) {
+            $expression = $accounts.properties.parameters[$name]
+            $expression | Should -Match "^.if\(parameters\('enableDiagnosticStorageCmk'\), createObject\('value', reference\("
+            (Resolve-ArmTestExpression $expression $context).value | Should -BeExactly ''
+        }
+        $properties = Resolve-ArmTestExpression $storage.outputs.keyVaultProperties.value $context
+        $properties.Count | Should -Be 0
+    }
+
+    It 'keeps the existing CMK outputs wired when enabled' {
+        $properties = @{ name = 'vault'; subscriptionId = 'sub'; resourceGroupName = 'hub'; tierName = 'hub' }
+        $context = @{
+            Template = $storage
+            Parameters = @{
+                enableDiagnosticStorageCmk = $true
+                cmkDeployment = @{ outputs = @{
+                    keyVaultUri = @{ value = 'https://vault.example/' }
+                    keyName = @{ value = 'StorageEncryptionKey' }
+                    userAssignedIdentityResourceId = @{ value = '/identity' }
+                    keyVaultProperties = @{ value = $properties }
+                } }
+            }
+        }
+        foreach ($entry in @(
+            @{ Parameter = 'keyVaultUri'; Expected = 'https://vault.example/' },
+            @{ Parameter = 'storageEncryptionKeyName'; Expected = 'StorageEncryptionKey' },
+            @{ Parameter = 'userAssignedIdentityResourceId'; Expected = '/identity' }
+        )) {
+            $expression = $accounts.properties.parameters[$entry.Parameter]
+            $expression | Should -Match ([regex]::Escape($cmkReference))
+            $expression = $expression.Replace($cmkReference, "parameters('cmkDeployment')")
+            (Resolve-ArmTestExpression $expression $context).value | Should -BeExactly $entry.Expected
+        }
+        $expression = $storage.outputs.keyVaultProperties.value.Replace($cmkReference, "parameters('cmkDeployment')")
+        (Resolve-ArmTestExpression $expression $context).name | Should -BeExactly 'vault'
+    }
+
+    It 'uses Microsoft-managed keys without evaluating CMK configuration when disabled' {
+        $context = @{ Template = $accountTemplate; Parameters = @{ enableDiagnosticStorageCmk = $false } }
+        $identity = Resolve-ArmTestExpression $account.identity $context
+        $identity.type | Should -BeExactly 'None'
+        $identity.ContainsKey('userAssignedIdentities') | Should -BeFalse
+        $identity.Count | Should -Be 1
+        $encryption = Resolve-ArmTestExpression $account.properties.encryption $context
+        $encryption.keySource | Should -BeExactly 'Microsoft.Storage'
+        $encryption.ContainsKey('identity') | Should -BeFalse
+        $encryption.ContainsKey('keyvaultproperties') | Should -BeFalse
+        $encryption.Count | Should -Be 3
+    }
+
+    It 'preserves CMK encryption and identity when enabled, including the shared-module default' {
+        foreach ($explicitFlag in @($false, $true)) {
+            $parameters = @{
+                keyVaultUri = 'https://vault.example/'
+                storageEncryptionKeyName = 'StorageEncryptionKey'
+                userAssignedIdentityResourceId = '/identity'
+            }
+            if ($explicitFlag) { $parameters.enableDiagnosticStorageCmk = $true }
+            $context = @{ Template = $accountTemplate; Parameters = $parameters }
+            $identity = Resolve-ArmTestExpression $account.identity $context
+            $identity.type | Should -BeExactly 'UserAssigned'
+            @($identity.userAssignedIdentities.Keys) | Should -Be @('/identity')
+            $encryption = Resolve-ArmTestExpression $account.properties.encryption $context
+            $encryption.keySource | Should -BeExactly 'Microsoft.KeyVault'
+            $encryption.identity.userAssignedIdentity | Should -BeExactly '/identity'
+            $encryption.keyvaultproperties.keyvaulturi | Should -BeExactly 'https://vault.example/'
+            $encryption.keyvaultproperties.keyname | Should -BeExactly 'StorageEncryptionKey'
+        }
+    }
+
+    It 'retains infrastructure encryption and all service encryption settings with CMK=<Enabled>' -ForEach @(
+        @{ Enabled = $false },
+        @{ Enabled = $true }
+    ) {
+        $context = @{
+            Template = $accountTemplate
+            Parameters = @{
+                enableDiagnosticStorageCmk = $Enabled
+                keyVaultUri = 'https://vault.example/'
+                storageEncryptionKeyName = 'StorageEncryptionKey'
+                userAssignedIdentityResourceId = '/identity'
+            }
+        }
+        $encryption = Resolve-ArmTestExpression $account.properties.encryption $context
+        $encryption.requireInfrastructureEncryption | Should -BeTrue
+        $encryption.services.Count | Should -Be 4
+        foreach ($service in @('blob', 'file', 'queue', 'table')) {
+            $encryption.services[$service].enabled | Should -BeTrue
+            $encryption.services[$service].keyType | Should -BeExactly 'Account'
+        }
+    }
+
+    It 'omits the storage vault diagnostic entry without evaluating its output when disabled' {
+        $expression = $diagnosticModule.properties.parameters.keyVaults.value
+        $match = [regex]::Match($expression, "^\[union\((?<storage>if\(variables\('effectiveDiagnosticStorageCmk'\).*?createArray\(\)\)), if\(")
+        $match.Success | Should -BeTrue
+        $contribution = "[$($match.Groups['storage'].Value)]"
+        $context = New-ProfileContext
+        $vaults = Resolve-ArmTestExpression $contribution $context
+        $vaults.Count | Should -Be 0
+        $context.Parameters.enableCustomerDiagnosticStorageCmk = $true
+        $context.Parameters.storageDeployment = @{ outputs = @{ keyVaultProperties = @{ value = @{ name = 'vault' } } } }
+        $contribution | Should -Match ([regex]::Escape($storageReference))
+        $contribution = $contribution.Replace($storageReference, "parameters('storageDeployment')")
+        $vaults = Resolve-ArmTestExpression $contribution $context
+        $vaults.Count | Should -Be 1
+        $vaults[0].name | Should -BeExactly 'vault'
+    }
+
+    It 'does not forward the customer opt-in to workload or add-on encryption' {
+        foreach ($module in @($remoteModule, $addsModule)) {
+            $module.properties.parameters.ContainsKey('enableDiagnosticStorageCmk') | Should -BeFalse
+            $module.properties.parameters.ContainsKey('enableCustomerDiagnosticStorageCmk') | Should -BeFalse
+        }
+        foreach ($path in @('src\add-ons\arcgis-pro\solution.bicep', 'src\add-ons\tier3\modules\storage.bicep')) {
+            Get-Content (Join-Path $repo $path) -Raw | Should -Not -Match 'enable(Customer)?DiagnosticStorageCmk'
+        }
     }
 }
 
@@ -272,6 +443,40 @@ Describe 'ARM topology test evaluator guardrails' {
 }
 
 Describe 'Deployment profile portal controls' {
+    It 'offers an unchecked native Boolean diagnostic CMK control only for customer-il2' {
+        $compliance = $ui.view.properties.steps | Where-Object name -eq 'compliance'
+        $section = $compliance.elements | Where-Object name -eq 'diagnosticStorageSection'
+        $control = $section.elements | Where-Object name -eq 'enableCustomerDiagnosticStorageCmk'
+        $control.type | Should -BeExactly 'Microsoft.Common.CheckBox'
+        $control.label | Should -BeExactly 'Use customer-managed keys for diagnostic storage?'
+        $control.constraints.required | Should -BeFalse
+        $control.ContainsKey('defaultValue') | Should -BeFalse
+        $section.visible | Should -BeExactly "[equals(steps('basics').deploymentProfile, 'customer-il2')]"
+        $control.toolTip | Should -Match 'Microsoft-managed keys'
+        $control.toolTip | Should -Match 'infrastructure encryption'
+        $warning = $section.elements | Where-Object name -eq 'diagnosticStorageCmkWarning'
+        $warning.options.text | Should -Match 'TagsByResource'
+        $warning.options.text | Should -Match 'offline'
+    }
+
+    It 'outputs a Boolean for profile=<Profile> with checkbox=<Checked>' -ForEach @(
+        @{ Profile = 'customer-il2'; Checked = $false; Expected = $false },
+        @{ Profile = 'customer-il2'; Checked = $true; Expected = $true },
+        @{ Profile = 'legacy'; Checked = $false; Expected = $false },
+        @{ Profile = 'legacy'; Checked = $true; Expected = $false }
+    ) {
+        $context = @{ Parameters = @{
+            basics = @{ deploymentProfile = $Profile }
+            compliance = @{ diagnosticStorageSection = @{ enableCustomerDiagnosticStorageCmk = $Checked } }
+        } }
+        $expression = $ui.view.outputs.parameters.enableCustomerDiagnosticStorageCmk
+        $expression | Should -BeExactly "[and(equals(steps('basics').deploymentProfile, 'customer-il2'), steps('compliance').diagnosticStorageSection.enableCustomerDiagnosticStorageCmk)]"
+        $expression = $expression.Replace("steps('basics')", "parameters('basics')").Replace("steps('compliance')", "parameters('compliance')")
+        $output = Resolve-ArmTestExpression $expression $context
+        $output | Should -BeOfType ([bool])
+        $output | Should -Be $Expected
+    }
+
     It 'defaults to customer-il2 and offers an explicit legacy profile' {
         $basics = $ui.view.properties.steps | Where-Object name -eq 'basics'
         $profile = $basics.elements | Where-Object name -eq 'deploymentProfile'

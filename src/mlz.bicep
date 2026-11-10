@@ -138,6 +138,9 @@ param deploymentNameSuffix string = utcNow()
 @description('customer-il2 deploys only Hub and Operations with SCCA/region/IL2 naming and disables MLZ Identity, ADDS, and jump-box workloads regardless of their switches. legacy preserves the upstream topology and resource naming.')
 param deploymentProfile string = 'customer-il2'
 
+@description('customer-il2 only: opt in to customer-managed keys for MLZ diagnostic storage. Default false uses Microsoft-managed keys with infrastructure encryption. legacy always enables CMK. Does not control workload encryption. The CMK-enabled path retains the known upstream TagsByResource issue.')
+param enableCustomerDiagnosticStorageCmk bool = false
+
 @description('When set to true, deploys Network Watcher Traffic Analytics. Default value = "false".')
 param deployNetworkWatcherTrafficAnalytics bool = false
 
@@ -688,6 +691,7 @@ param windowsVmStorageAccountType string = 'StandardSSD_LRS'
 var firewallClientPrivateIpAddress = firewallClientUsableIpAddresses[3]
 var firewallClientUsableIpAddresses = [for i in range(0, 4): cidrHost(firewallClientSubnetAddressPrefix, i)]
 var isLegacyProfile = deploymentProfile == 'legacy'
+var effectiveDiagnosticStorageCmk = isLegacyProfile || enableCustomerDiagnosticStorageCmk
 var effectiveDeployIdentity = isLegacyProfile && deployIdentity
 var effectiveDeployActiveDirectoryDomainServices = effectiveDeployIdentity && deployActiveDirectoryDomainServices
 var effectiveDeployLinuxVirtualMachine = isLegacyProfile && deployLinuxVirtualMachine
@@ -1110,6 +1114,7 @@ module storage 'modules/storage.bicep' = {
     delimiter: networking.outputs.delimiter
     //deployIdentity: deployIdentity
     deploymentNameSuffix: deploymentNameSuffix
+    enableDiagnosticStorageCmk: effectiveDiagnosticStorageCmk
     environmentAbbreviation: environmentAbbreviation
     location: location
     logStorageSkuName: logStorageSkuName
@@ -1147,9 +1152,11 @@ module diagnosticSettings 'modules/diagnostic-settings.bicep' = {
     firewallDiagnosticsLogs: firewallDiagnosticsLogs
     firewallDiagnosticsMetrics: firewallDiagnosticsMetrics
     keyVaults: union(
-      [
-        storage.outputs.keyVaultProperties
-      ],
+      effectiveDiagnosticStorageCmk
+        ? [
+            storage.outputs.keyVaultProperties
+          ]
+        : [],
       effectiveDeployActiveDirectoryDomainServices
         ? [
             activeDirectoryDomainServices!.outputs.keyVaultProperties

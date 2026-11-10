@@ -52,8 +52,28 @@ Hub and Operations tiers, with one pair of Hub/Operations VNet peerings. Shared 
 Identity, ADDS, and MLZ jump-box workload resource groups are not deployed. Setting
 `deployIdentity`, `deployActiveDirectoryDomainServices`, `deployLinuxVirtualMachine`, or
 `deployWindowsVirtualMachine` to `true` cannot override this profile; these requests are
-ignored. Bastion remains optional, and the temporary CMK management VM workflow remains
-enabled as required by storage encryption.
+ignored. Bastion remains optional. Diagnostic storage uses Microsoft-managed keys by
+default, with Azure Storage encryption at rest and infrastructure encryption enabled.
+
+### Diagnostic Storage Encryption
+
+`enableCustomerDiagnosticStorageCmk` is a Boolean parameter with default `false`.
+For `customer-il2`, `false` skips the entire diagnostic-storage CMK workflow; `true`
+opts in to the existing MLZ Key Vault, managed identity, temporary management VM,
+key-creation, and related encryption-support resources. Both modes retain
+`requireInfrastructureEncryption: true` and the existing blob, file, queue, and
+table encryption settings.
+
+For `legacy`, diagnostic-storage CMK remains enabled regardless of this parameter.
+Shared-module defaults preserve existing add-on behavior. The option applies only
+to MLZ diagnostic storage, not VDMS, domain controllers, Shared Services, workload
+VMs, disks, Key Vaults, or separately deployed customer resources.
+
+The customer-il2 default and currently validated path is CMK off (offline regression
+checks only, not a successful Azure deployment). The CMK-enabled path retains the
+known upstream `TagsByResource` issue and has not been validated successfully in
+Azure. This option targets fresh deployments; no migration or resource-cleanup
+logic is included.
 
 Customer-managed VDMS/domain controllers and Shared Services are deployed separately.
 Their resource groups, networks, peering, DNS integration, and workloads are outside

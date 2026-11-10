@@ -5,6 +5,7 @@ Licensed under the MIT License.
 
 param blobsPrivateDnsZoneResourceId string
 param delimiter string
+param enableDiagnosticStorageCmk bool = true
 param environmentAbbreviation string
 param filesPrivateDnsZoneResourceId string
 param keyVaultUri string
@@ -20,6 +21,25 @@ param tags object
 param tier object
 param tokens object
 param userAssignedIdentityResourceId string
+
+var storageEncryptionServices = {
+  blob: {
+    keyType: 'Account'
+    enabled: true
+  }
+  file: {
+    keyType: 'Account'
+    enabled: true
+  }
+  queue: {
+    keyType: 'Account'
+    enabled: true
+  }
+  table: {
+    keyType: 'Account'
+    enabled: true
+  }
+}
 
 var  subResources = [
   {
@@ -48,11 +68,13 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2025-06-01' = {
   name: uniqueString(replace(tier.namingConvention.storageAccount, tokens.purpose, purpose), resourceGroup().id)
   location: location
   tags: union(tags[?'Microsoft.Storage/storageAccounts'] ?? {}, mlzTags)
-  identity: {
+  identity: enableDiagnosticStorageCmk ? {
     type: 'UserAssigned'
     userAssignedIdentities: {
       '${userAssignedIdentityResourceId}': {}
     }
+  } : {
+    type: 'None'
   }
   kind: 'StorageV2'
   sku: {
@@ -66,7 +88,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2025-06-01' = {
     allowSharedKeyAccess: false
     defaultToOAuthAuthentication: false
     dnsEndpointType: 'Standard'
-    encryption: {
+    encryption: enableDiagnosticStorageCmk ? {
       identity: {
         userAssignedIdentity: userAssignedIdentityResourceId
       }
@@ -76,24 +98,11 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2025-06-01' = {
         keyname: storageEncryptionKeyName
       }
       requireInfrastructureEncryption: true
-      services: {
-        blob: {
-          keyType: 'Account'
-          enabled: true
-        }
-        file: {
-          keyType: 'Account'
-          enabled: true
-        }
-        queue: {
-          keyType: 'Account'
-          enabled: true
-        }
-        table: {
-          keyType: 'Account'
-          enabled: true
-        }
-      }
+      services: storageEncryptionServices
+    } : {
+      keySource: 'Microsoft.Storage'
+      requireInfrastructureEncryption: true
+      services: storageEncryptionServices
     }
     minimumTlsVersion: 'TLS1_2'
     networkAcls: {

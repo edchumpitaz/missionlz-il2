@@ -8,6 +8,7 @@ targetScope = 'subscription'
 param delimiter string
 //param deployIdentity bool
 param deploymentNameSuffix string
+param enableDiagnosticStorageCmk bool = true
 param environmentAbbreviation string
 param location string
 param logStorageSkuName string
@@ -23,7 +24,7 @@ param virtualMachineSize string
 var resourceGroupName = filter(tiers, tier => tier.name == 'hub')[0].resourceGroupName
 var subscriptionId = filter(tiers, tier => tier.name == 'hub')[0].subscriptionId
 
-module customerManagedKeys 'customer-managed-keys.bicep' = {
+module customerManagedKeys 'customer-managed-keys.bicep' = if (enableDiagnosticStorageCmk) {
   name: 'deploy-st-cmk-${deploymentNameSuffix}'
   scope: resourceGroup(subscriptionId, resourceGroupName)
   params: {
@@ -49,24 +50,25 @@ module storageAccounts 'storage-account.bicep' = [for (tier, i) in tiers: {
   params: {
     blobsPrivateDnsZoneResourceId: privateDnsZoneResourceIds.blob
     delimiter: delimiter
+    enableDiagnosticStorageCmk: enableDiagnosticStorageCmk
     environmentAbbreviation: environmentAbbreviation
     filesPrivateDnsZoneResourceId: privateDnsZoneResourceIds.file
-    keyVaultUri: customerManagedKeys.outputs.keyVaultUri
+    keyVaultUri: enableDiagnosticStorageCmk ? customerManagedKeys!.outputs.keyVaultUri : ''
     location: location
     mlzTags: mlzTags
     purpose: purpose
     queuesPrivateDnsZoneResourceId: privateDnsZoneResourceIds.queue
     skuName: logStorageSkuName
-    storageEncryptionKeyName: customerManagedKeys.outputs.keyName
+    storageEncryptionKeyName: enableDiagnosticStorageCmk ? customerManagedKeys!.outputs.keyName : ''
     subnetResourceId: tier.subnetResourceId
     tablesPrivateDnsZoneResourceId: privateDnsZoneResourceIds.table
     tags: tags
     tier: tier
     tokens: tokens
-    userAssignedIdentityResourceId: customerManagedKeys.outputs.userAssignedIdentityResourceId
+    userAssignedIdentityResourceId: enableDiagnosticStorageCmk ? customerManagedKeys!.outputs.userAssignedIdentityResourceId : ''
   }
 }]
 
-output keyVaultProperties object = customerManagedKeys.outputs.keyVaultProperties
+output keyVaultProperties object = enableDiagnosticStorageCmk ? customerManagedKeys!.outputs.keyVaultProperties : {}
 output networkInterfaceResourceIds array = [for (tier, i) in tiers: storageAccounts[i].outputs.networkInterfaceResourceIds]
 output storageAccountResourceIds array = [for (tier, i) in tiers: storageAccounts[i].outputs.id]

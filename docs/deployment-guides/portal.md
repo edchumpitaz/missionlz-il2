@@ -109,6 +109,27 @@ The following parameters affect networking. Each virtual network and subnet has 
 
 MLZ has optional features that can be enabled in the Security and Compliance step.
 
+#### Diagnostic Storage Encryption
+
+For `customer-il2`, **Use customer-managed keys for diagnostic storage?** is an
+optional Boolean checkbox. The default is **No** (unchecked): diagnostic storage
+uses Microsoft-managed keys, retains encryption at rest and infrastructure
+encryption, and does not deploy the diagnostic-storage CMK workflow.
+
+**Yes** (checked) passes `enableCustomerDiagnosticStorageCmk = true` and enables
+the existing MLZ CMK workflow. This setting applies only to MLZ diagnostic storage;
+it does not control VDMS, domain-controller, Shared Services, workload VM/disk,
+workload Key Vault, or separately deployed customer-resource encryption.
+
+The control is hidden for `legacy`, which always retains upstream diagnostic-storage
+CMK behavior without requiring opt-in.
+
+> [!WARNING]
+> No is the customer-il2 default and currently validated path (offline regression
+> checks only, not a successful Azure deployment). Yes retains the known upstream
+> `TagsByResource` issue and has not been validated successfully in Azure. This
+> change supports fresh deployments and adds no migration or cleanup logic.
+
 #### Microsoft Defender for Cloud - Cloud Security Posture Management
 
 By default [Microsoft Defender for Cloud](https://docs.microsoft.com/en-us/azure/defender-for-cloud/defender-for-cloud-introduction) offers a free set of monitoring capabilities that are enabled via an Azure policy when you first set up a subscription and view the Microsoft Defender for Cloud portal blade.
